@@ -174,3 +174,4 @@
 /home/ubuntu/NDI-Telop/tests/NdiTelop.Tests/bin/Debug/net8.0/runtimes/linux-musl-riscv64/native/libSkiaSharp.so
 /home/ubuntu/NDI-Telop/tests/NdiTelop.Tests/bin/Debug/net8.0/runtimes/linux-riscv64/native/libSkiaSharp.so
 /home/ubuntu/NDI-Telop/tests/NdiTelop.Tests/bin/Debug/net8.0/runtimes/linux-x86/native/libSkiaSharp.so
+/home/ubuntu/NDI-Telop/tests/NdiTelop.Tests/bin/Debug/net8.0/Avalonia.Controls.ColorPicker.dll

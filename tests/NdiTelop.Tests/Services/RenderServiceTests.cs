@@ -62,7 +62,8 @@ public class RenderServiceTests
         var fromPreset = new Preset { TextLines = [new TextLine { Text = "From" }] };
         var toPreset = new Preset { TextLines = [new TextLine { Text = "To" }] };
         var config = new AnimationConfig { InType = "fade" };
-        using var bitmap = service.RenderTransition(fromPreset, toPreset, 0.5f, config);
+        var ndiConfig = new NdiConfig { ResolutionWidth = 1920, ResolutionHeight = 1080 };
+        using var bitmap = service.RenderTransition(fromPreset, toPreset, 0.5f, config, ndiConfig);
 
         Assert.Equal(1920, bitmap.Width);
         Assert.Equal(1080, bitmap.Height);

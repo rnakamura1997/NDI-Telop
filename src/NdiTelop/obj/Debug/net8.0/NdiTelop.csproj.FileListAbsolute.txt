@@ -86,3 +86,4 @@
 /home/ubuntu/NDI-Telop/src/NdiTelop/obj/Debug/net8.0/NdiTelop.csproj.Up2Date
 /home/ubuntu/NDI-Telop/src/NdiTelop/obj/Debug/net8.0/NdiTelop.genruntimeconfig.cache
 /home/ubuntu/NDI-Telop/src/NdiTelop/obj/Debug/net8.0/ref/NdiTelop.dll
+/home/ubuntu/NDI-Telop/src/NdiTelop/bin/Debug/net8.0/Avalonia.Controls.ColorPicker.dll

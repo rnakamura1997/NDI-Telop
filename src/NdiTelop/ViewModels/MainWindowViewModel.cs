@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using NdiTelop.Utils;
+using SkiaSharp;
 
 namespace NdiTelop.ViewModels;
 
@@ -20,6 +21,7 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _status = "Ready";
 
+
     [ObservableProperty]
     private Preset? _selectedPreset = new() { Name = "New Preset", TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
 
@@ -27,6 +29,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         // SelectedPreset が null になることはないため、このロジックは不要
     }
+
+
 
     [ObservableProperty]
     private NdiConfig _ndiConfig = new() { SourceName = "NdiTelop", ResolutionWidth = 1920, ResolutionHeight = 1080, FrameRateN = 30000, FrameRateD = 1001 };
@@ -47,9 +51,25 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPreviewActive;
 
+    public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
+
+    [ObservableProperty]
+    private Preset? _currentProgramPreset;
+
+
+
+    private DispatcherTimer? _autoClearTimer;
+
+    private DispatcherTimer? _transitionTimer;
+    private Preset? _transitionFromPreset;
+    private Preset? _transitionToPreset;
+    private float _transitionProgress;
+
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
     private DispatcherTimer _ndiSendTimer;
+
+
 
     public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService)
     {
@@ -60,6 +80,19 @@ public partial class MainWindowViewModel : ObservableObject
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
         _ndiSendTimer.Tick += NdiSendTimer_Tick;
+
+        // Load available font families
+        foreach (var family in SkiaSharp.SKFontManager.Default.GetFontFamilies())
+        {
+            AvailableFontFamilies.Add(family);
+        }
+
+        // コマンドの初期化
+        ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
+
+        _autoClearTimer = new DispatcherTimer();
+        _autoClearTimer.Interval = TimeSpan.FromSeconds(1);
+        _autoClearTimer.Tick += AutoClearTimer_Tick;
     }
 
     [RelayCommand]
@@ -154,13 +187,102 @@ public partial class MainWindowViewModel : ObservableObject
         Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
     }
 
+    public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }
+
+    private async Task ShowPresetAsync(Preset? preset)
+    {
+        if (preset == null || CurrentProgramPreset == preset) return;
+
+        _transitionFromPreset = CurrentProgramPreset ?? new Preset(); // If null, transition from empty
+        _transitionToPreset = preset;
+        _transitionProgress = 0f;
+
+        _transitionTimer?.Stop();
+        _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
+        _transitionTimer.Start();
+
+        // This will become the new active preset after the transition
+        CurrentProgramPreset = preset;
+
+        // AutoClearSeconds の設定
+        if (CurrentProgramPreset.AutoClearSeconds > 0)
+        {
+            _autoClearTimer?.Stop();
+            _autoClearTimer.Interval = TimeSpan.FromSeconds(CurrentProgramPreset.AutoClearSeconds);
+            _autoClearTimer.Start();
+        }
+        else
+        {
+            _autoClearTimer?.Stop();
+        }
+    }
+
+    private void TransitionTimer_Tick(object? sender, EventArgs e)
+    {
+        _transitionProgress += 1f / (0.5f * 60); // 0.5 second transition at 60fps
+
+        if (_transitionProgress >= 1f)
+        {
+            _transitionProgress = 1f;
+            _transitionTimer?.Stop();
+            _transitionFromPreset = null;
+            _transitionToPreset = null;
+        }
+
+        // Force redraw of the preview canvas
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private async void AutoClearTimer_Tick(object? sender, EventArgs e)
+    {
+        if (CurrentProgramPreset == null || CurrentProgramPreset.AutoClearSeconds == 0) return;
+
+        // AutoClearSeconds はプリセットごとに設定されるべきだが、ここでは ViewModel のプロパティを使用
+        // 実際には CurrentProgramPreset.AutoClearSeconds を使用する
+        if (CurrentProgramPreset.AutoClearSeconds > 0 && _ndiService.IsProgramActive)
+        {
+            // カウントダウンロジック
+            // ここでは簡略化のため、タイマーが発火したらすぐにクリアする
+            // 実際には経過時間を保持し、AutoClearSeconds に達したらクリアする
+            await ClearProgram();
+            _autoClearTimer?.Stop();
+        }
+    }
+
+    [RelayCommand]
+    public async Task ClearProgram()
+    {
+        if (!_ndiService.IsInitialized) return;
+
+        // 透明なフレームを送信してクリア
+        var transparentBitmap = new SKBitmap(NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (transparentBitmap)
+        {
+            using var canvas = new SKCanvas(transparentBitmap);
+            canvas.Clear(SKColors.Transparent);
+            await _ndiService.SendFrameAsync(NdiChannelType.Program, transparentBitmap);
+            await _ndiService.SendFrameAsync(NdiChannelType.Preview, transparentBitmap);
+        }
+        CurrentProgramPreset = null;
+        Status = "Program cleared.";
+    }
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
-        if (SelectedPreset == null || !_ndiService.IsInitialized) return;
+        if (CurrentProgramPreset == null || !_ndiService.IsInitialized) return;
 
         try
         {
-            using var bitmap = _renderService.Render(SelectedPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+            SKBitmap bitmap;
+            if (_transitionFromPreset != null && _transitionToPreset != null)
+            {
+                bitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
+            }
+            else
+            {
+                bitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+            }
+
+            using (bitmap)
             await _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap);
             await _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap);
         }

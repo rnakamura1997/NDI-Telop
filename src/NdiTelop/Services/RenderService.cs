@@ -14,25 +14,30 @@ public class RenderService : IRenderService
 
         DrawBackground(canvas, preset.Background, width, height);
         DrawTextLines(canvas, preset.TextLines, width, height);
+        DrawOverlays(canvas, preset.Overlays, width, height);
 
         return bitmap;
     }
 
-    public SKBitmap RenderTransition(Preset from, Preset to, float progress, AnimationConfig config)
+    public SKBitmap RenderTransition(Preset from, Preset to, float progress, AnimationConfig config, NdiConfig ndiConfig)
     {
         var p = Clamp01(progress);
 
-        using var fromBitmap = Render(from, 1920, 1080);
-        using var toBitmap = Render(to, 1920, 1080);
+        // トランジションのレンダリング解像度は NDI Config に従う
+        var renderWidth = ndiConfig.ResolutionWidth;
+        var renderHeight = ndiConfig.ResolutionHeight;
 
-        var output = new SKBitmap(1920, 1080, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var fromBitmap = Render(from, renderWidth, renderHeight);
+        using var toBitmap = Render(to, renderWidth, renderHeight);
+
+        var output = new SKBitmap(renderWidth, renderHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(output);
         canvas.Clear(SKColors.Transparent);
 
         // Basic slide transition (left to right)
         if (string.Equals(config.InType, "slide", StringComparison.OrdinalIgnoreCase))
         {
-            var x = 1920f * (1f - p);
+            var x = (float)renderWidth * (1f - p);
             canvas.DrawBitmap(fromBitmap, 0, 0);
             canvas.DrawBitmap(toBitmap, x, 0);
             return output;
@@ -55,6 +60,28 @@ public class RenderService : IRenderService
         var c = SKColor.Parse(bg.Color).WithAlpha((byte)(Math.Clamp(bg.Alpha, 0f, 1f) * 255));
         using var paint = new SKPaint { Color = c };
         canvas.DrawRect(0, 0, width, height, paint);
+    }
+
+    private static void DrawOverlays(SKCanvas canvas, IReadOnlyList<OverlayItem> overlays, int width, int height)
+    {
+        foreach (var overlay in overlays)
+        {
+            if (string.IsNullOrEmpty(overlay.Path) || !System.IO.File.Exists(overlay.Path)) continue;
+
+            using var image = SKBitmap.Decode(overlay.Path);
+            if (image == null) continue;
+
+            using var paint = new SKPaint
+            {
+                Color = SKColors.White.WithAlpha((byte)(overlay.Opacity * 255)),
+                IsAntialias = true
+            };
+
+            var drawWidth = overlay.Width > 0 ? overlay.Width : image.Width;
+            var drawHeight = overlay.Height > 0 ? overlay.Height : image.Height;
+            var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
+            canvas.DrawBitmap(image, destRect, paint);
+        }
     }
 
     private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, int width, int height)

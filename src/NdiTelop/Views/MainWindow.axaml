@@ -2,6 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NdiTelop.ViewModels"
         xmlns:ctrl="using:NdiTelop.Controls"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:core="using:Avalonia.Xaml.Interactions.Core"
+        xmlns:conv="using:NdiTelop.Converters"
+        xmlns:ac="using:Avalonia.Controls"
         x:Class="NdiTelop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1280" Height="720"
@@ -9,12 +13,17 @@
   <Design.DataContext>
     <vm:MainWindowViewModel />
   </Design.DataContext>
+
+  <Window.Resources>
+    <conv:StringToColorConverter x:Key="StringToColorConverter" />
+  </Window.Resources>
   <Grid ColumnDefinitions="250,*,250" RowDefinitions="*,Auto">
     <!-- Left Column: Preset List and Controls -->
     <StackPanel Grid.Column="0" Margin="10" Spacing="5">
       <Button Content="Load Presets" Command="{Binding LoadPresetsCommand}" HorizontalAlignment="Stretch" />
       <Button Content="Save Selected" Command="{Binding SaveSelectedPresetCommand}" HorizontalAlignment="Stretch" />
       <Button Content="Delete Selected" Command="{Binding DeleteSelectedPresetCommand}" HorizontalAlignment="Stretch" />
+      <Button Content="Show Preset" Command="{Binding ShowPresetCommand}" CommandParameter="{Binding SelectedPreset}" HorizontalAlignment="Stretch" Margin="0,10,0,0" />
       <ListBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" 
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0,10,0,0">
         <ListBox.ItemTemplate>
@@ -37,10 +46,14 @@
       <TextBox Text="{Binding SelectedPreset.Name}" />
       <TextBlock Text="Text Line 1:" />
       <TextBox Text="{Binding SelectedPreset.TextLines[0].Text}" />
+      <TextBlock Text="Font Family:" />
+      <ComboBox ItemsSource="{Binding AvailableFontFamilies}" SelectedItem="{Binding SelectedPreset.TextLines[0].FontFamily}" HorizontalAlignment="Stretch" />
       <TextBlock Text="Font Size:" />
       <TextBox Text="{Binding SelectedPreset.TextLines[0].FontSize}" />
       <TextBlock Text="Color:" />
-      <TextBox Text="{Binding SelectedPreset.TextLines[0].Color}" />
+      <ac:ColorPicker Color="{Binding SelectedPreset.TextLines[0].Color, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+      <TextBlock Text="Auto Clear (seconds):" />
+      <TextBox Text="{Binding SelectedPreset.AutoClearSeconds}" />
       <Button Content="Render Preview" Command="{Binding RenderPreviewCommand}" HorizontalAlignment="Stretch" Margin="0,10,0,0" />
 
       <Separator Margin="0,10" />
