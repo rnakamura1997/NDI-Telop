@@ -6,6 +6,8 @@ using NdiTelop.Interfaces;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Threading;
+using NdiTelop.Utils;
 
 namespace NdiTelop.ViewModels;
 
@@ -13,6 +15,7 @@ public partial class MainWindowViewModel : ObservableObject
 {
     private readonly RenderService _renderService;
     private readonly IPresetService _presetService;
+    private readonly INdiService _ndiService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -20,12 +23,31 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private Preset? _selectedPreset;
 
+    [ObservableProperty]
+    private NdiConfig _ndiConfig = new() { SourceName = "NdiTelop", ResolutionWidth = 1920, ResolutionHeight = 1080, FrameRateN = 30000, FrameRateD = 1001 };
+
+    [ObservableProperty]
+    private bool _isNdiInitialized;
+
+    [ObservableProperty]
+    private bool _isProgramActive;
+
+    [ObservableProperty]
+    private bool _isPreviewActive;
+
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService)
+    private DispatcherTimer _ndiSendTimer;
+
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService)
     {
         _renderService = renderService;
         _presetService = presetService;
+        _ndiService = ndiService;
+
+        _ndiSendTimer = new DispatcherTimer();
+        _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
+        _ndiSendTimer.Tick += NdiSendTimer_Tick;
     }
 
     [RelayCommand]
@@ -47,11 +69,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         try
         {
-            // In Phase 1a, we just render to a bitmap, not send to NDI yet.
-            // The actual preview display will be handled by the UI.
-            using var bitmap = _renderService.Render(SelectedPreset, 1280, 720);
-            // For now, we don't display the bitmap directly in the ViewModel.
-            // The UI will bind to SelectedPreset and use RenderService to draw.
+            // PreviewCanvas will handle rendering based on SelectedPreset
             Status = $"Preview rendered for: {SelectedPreset.Name}";
         }
         catch (Exception ex)
@@ -60,7 +78,6 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    // Placeholder for future SavePreset command
     [RelayCommand]
     public async Task SaveSelectedPresetAsync()
     {
@@ -68,9 +85,6 @@ public partial class MainWindowViewModel : ObservableObject
         {
             await _presetService.SavePresetAsync(SelectedPreset);
             Status = $"Preset saved: {SelectedPreset.Name}";
-            // Presetsコレクションが更新されたことをUIに通知する必要がある場合、
-            // _presetService.PresetsがObservableCollectionであれば自動的に通知されるはずです。
-            // そうでなければ、手動で更新をトリガーする必要があります。
         }
         else
         {
@@ -78,7 +92,6 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    // Placeholder for future DeletePreset command
     [RelayCommand]
     public async Task DeleteSelectedPresetAsync()
     {
@@ -88,13 +101,61 @@ public partial class MainWindowViewModel : ObservableObject
             SelectedPreset = null; // Clear selection before deleting
             await _presetService.DeletePresetAsync(presetToDelete.Id);
             Status = $"Preset deleted: {presetToDelete.Name}";
-            // Presetsコレクションが更新されたことをUIに通知する必要がある場合、
-            // _presetService.PresetsがObservableCollectionであれば自動的に通知されるはずです。
-            // そうでなければ、手動で更新をトリガーする必要があります。
         }
         else
         {
             Status = "No preset selected to delete.";
+        }
+    }
+
+    [RelayCommand]
+    public async Task InitializeNdiAsync()
+    {
+        if (_ndiService.IsInitialized) return;
+
+        try
+        {
+            await _ndiService.InitializeAsync(NdiConfig);
+            IsNdiInitialized = _ndiService.IsInitialized;
+            Status = "NDI Initialized.";
+            _ndiSendTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error initializing NDI: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task SetProgramActiveAsync(bool active)
+    {
+        await _ndiService.SetActiveAsync(NdiChannelType.Program, active);
+        IsProgramActive = _ndiService.IsProgramActive;
+        Status = $"NDI Program {(active ? "Active" : "Inactive")}.";
+    }
+
+    [RelayCommand]
+    public async Task SetPreviewActiveAsync(bool active)
+    {
+        await _ndiService.SetActiveAsync(NdiChannelType.Preview, active);
+        IsPreviewActive = _ndiService.IsPreviewActive;
+        Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
+    }
+
+    private void NdiSendTimer_Tick(object? sender, EventArgs e)
+    {
+        if (SelectedPreset == null || !_ndiService.IsInitialized) return;
+
+        try
+        {
+            using var bitmap = _renderService.Render(SelectedPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+            _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap).FireAndForget();
+            _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap).FireAndForget();
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error sending NDI frame: {ex.Message}";
+            _ndiSendTimer.Stop();
         }
     }
 }
