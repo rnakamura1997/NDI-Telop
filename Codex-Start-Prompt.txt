@@ -1,0 +1,17 @@
+最初に必ず以下を守ってください。
+
+1. このタスクは main ブランチ起点の最新スナップショット前提で進めてください
+2. シェルで git fetch / git pull を必須条件にしないでください
+3. AGENTS.md, docs/spec.md, docs/phase-plan.md, docs/protected-files.md を読んでください
+4. 今回は Phase 1a だけを実装してください
+5. Interfaces/ は変更しないでください
+6. Program.cs と App.axaml は最小変更にしてください
+7. 新機能は新規ファイル中心で追加してください
+8. dotnet build と dotnet test を通してください
+9. 通過した場合のみ PR を作成してください
+10. 競合しそうなら無理に進めず停止してください
+
+補足:
+- conflict 中の既存 PR を修復しないでください
+- latest main からの新規作業として扱ってください
+- PR には「何をしたか」「何をしていないか」「確認コマンド」を書いてください
