@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _status = "Ready";
 
+
     [ObservableProperty]
     private Preset? _selectedPreset = new() { Name = "New Preset", TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
 
@@ -28,6 +29,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         // SelectedPreset が null になることはないため、このロジックは不要
     }
+
+
 
     [ObservableProperty]
     private NdiConfig _ndiConfig = new() { SourceName = "NdiTelop", ResolutionWidth = 1920, ResolutionHeight = 1080, FrameRateN = 30000, FrameRateD = 1001 };
@@ -53,6 +56,10 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private Preset? _currentProgramPreset;
 
+
+
+    private DispatcherTimer? _autoClearTimer;
+
     private DispatcherTimer? _transitionTimer;
     private Preset? _transitionFromPreset;
     private Preset? _transitionToPreset;
@@ -61,6 +68,8 @@ public partial class MainWindowViewModel : ObservableObject
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
     private DispatcherTimer _ndiSendTimer;
+
+
 
     public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService)
     {
@@ -80,6 +89,10 @@ public partial class MainWindowViewModel : ObservableObject
 
         // コマンドの初期化
         ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
+
+        _autoClearTimer = new DispatcherTimer();
+        _autoClearTimer.Interval = TimeSpan.FromSeconds(1);
+        _autoClearTimer.Tick += AutoClearTimer_Tick;
     }
 
     [RelayCommand]
@@ -190,6 +203,18 @@ public partial class MainWindowViewModel : ObservableObject
 
         // This will become the new active preset after the transition
         CurrentProgramPreset = preset;
+
+        // AutoClearSeconds の設定
+        if (CurrentProgramPreset.AutoClearSeconds > 0)
+        {
+            _autoClearTimer?.Stop();
+            _autoClearTimer.Interval = TimeSpan.FromSeconds(CurrentProgramPreset.AutoClearSeconds);
+            _autoClearTimer.Start();
+        }
+        else
+        {
+            _autoClearTimer?.Stop();
+        }
     }
 
     private void TransitionTimer_Tick(object? sender, EventArgs e)
@@ -208,6 +233,39 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
+    private async void AutoClearTimer_Tick(object? sender, EventArgs e)
+    {
+        if (CurrentProgramPreset == null || CurrentProgramPreset.AutoClearSeconds == 0) return;
+
+        // AutoClearSeconds はプリセットごとに設定されるべきだが、ここでは ViewModel のプロパティを使用
+        // 実際には CurrentProgramPreset.AutoClearSeconds を使用する
+        if (CurrentProgramPreset.AutoClearSeconds > 0 && _ndiService.IsProgramActive)
+        {
+            // カウントダウンロジック
+            // ここでは簡略化のため、タイマーが発火したらすぐにクリアする
+            // 実際には経過時間を保持し、AutoClearSeconds に達したらクリアする
+            await ClearProgram();
+            _autoClearTimer?.Stop();
+        }
+    }
+
+    [RelayCommand]
+    public async Task ClearProgram()
+    {
+        if (!_ndiService.IsInitialized) return;
+
+        // 透明なフレームを送信してクリア
+        var transparentBitmap = new SKBitmap(NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (transparentBitmap)
+        {
+            using var canvas = new SKCanvas(transparentBitmap);
+            canvas.Clear(SKColors.Transparent);
+            await _ndiService.SendFrameAsync(NdiChannelType.Program, transparentBitmap);
+            await _ndiService.SendFrameAsync(NdiChannelType.Preview, transparentBitmap);
+        }
+        CurrentProgramPreset = null;
+        Status = "Program cleared.";
+    }
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
         if (CurrentProgramPreset == null || !_ndiService.IsInitialized) return;

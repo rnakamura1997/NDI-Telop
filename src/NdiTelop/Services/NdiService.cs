@@ -3,6 +3,7 @@ using NdiTelop.Models;
 using SkiaSharp;
 using System.Runtime.InteropServices;
 using NewTek.NDI;
+using NewTek.NDIlib;
 
 namespace NdiTelop.Services;
 
@@ -23,6 +24,11 @@ public class NdiService : INdiService
     {
         if (IsInitialized) return;
 
+        if (!NDIlib.IsSupported)
+        {
+            throw new InvalidOperationException("NDI runtime is not supported or not installed.");
+        }
+
         _ndiConfig = config;
         _ndiSender = new NewTek.NDI.Sender(config.SourceName, true, false, Array.Empty<string>());
 
@@ -42,17 +48,16 @@ public class NdiService : INdiService
             return;
         }
 
-        // VideoFrame をフレームごとに再作成し、データを直接コンストラクタに渡す
         using var videoFrame = new NewTek.NDI.VideoFrame(
             frame.GetPixels(), // IntPtr bufferPtr
             _ndiConfig.ResolutionWidth, // int width
             _ndiConfig.ResolutionHeight, // int height
             frame.RowBytes, // int stride
-            NewTek.NDIlib.FourCC_type_e.FourCC_type_BGRA, // NDIlib.FourCC_type_e fourCC
+            NDIlib.FourCC_type_e.FourCC_type_BGRA, // NDIlib.FourCC_type_e fourCC
             (float)_ndiConfig.ResolutionWidth / _ndiConfig.ResolutionHeight, // float aspectRatio
             _ndiConfig.FrameRateN, // int frameRateNumerator
             _ndiConfig.FrameRateD, // int frameRateDenominator
-            NewTek.NDIlib.frame_format_type_e.frame_format_type_progressive // NDIlib.frame_format_type_e format
+            NDIlib.frame_format_type_e.frame_format_type_progressive // NDIlib.frame_format_type_e format
         );
 
         // NDIフレームを送出

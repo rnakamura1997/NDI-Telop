@@ -5,6 +5,7 @@
         xmlns:i="using:Avalonia.Xaml.Interactivity"
         xmlns:core="using:Avalonia.Xaml.Interactions.Core"
         xmlns:conv="using:NdiTelop.Converters"
+        xmlns:ac="using:Avalonia.Controls"
         x:Class="NdiTelop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1280" Height="720"
@@ -50,7 +51,9 @@
       <TextBlock Text="Font Size:" />
       <TextBox Text="{Binding SelectedPreset.TextLines[0].FontSize}" />
       <TextBlock Text="Color:" />
-      <ColorPicker Color="{Binding SelectedPreset.TextLines[0].Color, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+      <ac:ColorPicker Color="{Binding SelectedPreset.TextLines[0].Color, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+      <TextBlock Text="Auto Clear (seconds):" />
+      <TextBox Text="{Binding SelectedPreset.AutoClearSeconds}" />
       <Button Content="Render Preview" Command="{Binding RenderPreviewCommand}" HorizontalAlignment="Stretch" Margin="0,10,0,0" />
 
       <Separator Margin="0,10" />
