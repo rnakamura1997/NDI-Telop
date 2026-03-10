@@ -30,10 +30,15 @@ public static class Program
 
         services.AddSingleton<MainWindow>();
         services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<PresetEditorViewModel>();
 
         services.AddSingleton<INdiService, NdiService>();
         services.AddSingleton<IRenderService, RenderService>();
-        services.AddSingleton<IPresetService, PresetService>();
+        services.AddSingleton<IPresetService, PresetService>(provider =>
+            new PresetService(
+                Path.Combine(AppContext.BaseDirectory, "data", "presets.json"),
+                Path.Combine(AppContext.BaseDirectory, "Assets", "DefaultPresets", "default_presets.json")
+            ));
         services.AddSingleton<ISetlistService, SetlistService>();
         services.AddSingleton<IWebApiService, WebApiService>();
         services.AddSingleton<IOscService, OscService>();
