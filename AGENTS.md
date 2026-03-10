@@ -64,3 +64,20 @@ Phase 1 をやり直す場合は、以下の順で進める。
 - `dotnet build` と `dotnet test` が通っている。
 - 変更範囲が対象フェーズ内に収まっている。
 - PR 説明に「何をしたか」「何をしていないか」「確認コマンド」を書くこと。
+
+## Preflight
+- 編集前に以下を確認すること:
+  - `command -v dotnet`
+  - `dotnet --info`
+  - `AGENTS.md`
+  - `docs/spec.md`
+  - `docs/phase-plan.md`
+  - `docs/protected-files.md`
+
+- `dotnet` が存在しない場合は、ファイル変更を一切行わず停止すること。
+
+- `docs/spec.md` / `docs/phase-plan.md` / `docs/protected-files.md` が workspace に存在しない場合でも、
+  ユーザープロンプト内に task 固有仕様が明示されていれば、その仕様を正本として作業を継続してよい。
+
+- docs 不在のみを理由に停止してはいけない。
+- build/test 前提タスクでは、`dotnet` 不在の状態で実装を始めてはいけない。
