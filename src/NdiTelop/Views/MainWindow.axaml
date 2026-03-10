@@ -2,6 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NdiTelop.ViewModels"
         xmlns:ctrl="using:NdiTelop.Controls"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:core="using:Avalonia.Xaml.Interactions.Core"
         x:Class="NdiTelop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1280" Height="720"
@@ -15,6 +17,7 @@
       <Button Content="Load Presets" Command="{Binding LoadPresetsCommand}" HorizontalAlignment="Stretch" />
       <Button Content="Save Selected" Command="{Binding SaveSelectedPresetCommand}" HorizontalAlignment="Stretch" />
       <Button Content="Delete Selected" Command="{Binding DeleteSelectedPresetCommand}" HorizontalAlignment="Stretch" />
+      <Button Content="Show Preset" Command="{Binding ShowPresetCommand}" CommandParameter="{Binding SelectedPreset}" HorizontalAlignment="Stretch" Margin="0,10,0,0" />
       <ListBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" 
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0,10,0,0">
         <ListBox.ItemTemplate>

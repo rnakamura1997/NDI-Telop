@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using NdiTelop.Utils;
+using SkiaSharp;
 
 namespace NdiTelop.ViewModels;
 
@@ -47,6 +48,14 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPreviewActive;
 
+    [ObservableProperty]
+    private Preset? _currentProgramPreset;
+
+    private DispatcherTimer? _transitionTimer;
+    private Preset? _transitionFromPreset;
+    private Preset? _transitionToPreset;
+    private float _transitionProgress;
+
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
     private DispatcherTimer _ndiSendTimer;
@@ -60,6 +69,9 @@ public partial class MainWindowViewModel : ObservableObject
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
         _ndiSendTimer.Tick += NdiSendTimer_Tick;
+
+        // コマンドの初期化
+        ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
     }
 
     [RelayCommand]
@@ -154,13 +166,57 @@ public partial class MainWindowViewModel : ObservableObject
         Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
     }
 
+    public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }
+
+    private async Task ShowPresetAsync(Preset? preset)
+    {
+        if (preset == null || CurrentProgramPreset == preset) return;
+
+        _transitionFromPreset = CurrentProgramPreset ?? new Preset(); // If null, transition from empty
+        _transitionToPreset = preset;
+        _transitionProgress = 0f;
+
+        _transitionTimer?.Stop();
+        _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
+        _transitionTimer.Start();
+
+        // This will become the new active preset after the transition
+        CurrentProgramPreset = preset;
+    }
+
+    private void TransitionTimer_Tick(object? sender, EventArgs e)
+    {
+        _transitionProgress += 1f / (0.5f * 60); // 0.5 second transition at 60fps
+
+        if (_transitionProgress >= 1f)
+        {
+            _transitionProgress = 1f;
+            _transitionTimer?.Stop();
+            _transitionFromPreset = null;
+            _transitionToPreset = null;
+        }
+
+        // Force redraw of the preview canvas
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
-        if (SelectedPreset == null || !_ndiService.IsInitialized) return;
+        if (CurrentProgramPreset == null || !_ndiService.IsInitialized) return;
 
         try
         {
-            using var bitmap = _renderService.Render(SelectedPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+            SKBitmap bitmap;
+            if (_transitionFromPreset != null && _transitionToPreset != null)
+            {
+                bitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
+            }
+            else
+            {
+                bitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+            }
+
+            using (bitmap)
             await _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap);
             await _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap);
         }

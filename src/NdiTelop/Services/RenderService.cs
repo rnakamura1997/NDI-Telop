@@ -18,21 +18,25 @@ public class RenderService : IRenderService
         return bitmap;
     }
 
-    public SKBitmap RenderTransition(Preset from, Preset to, float progress, AnimationConfig config)
+    public SKBitmap RenderTransition(Preset from, Preset to, float progress, AnimationConfig config, NdiConfig ndiConfig)
     {
         var p = Clamp01(progress);
 
-        using var fromBitmap = Render(from, 1920, 1080);
-        using var toBitmap = Render(to, 1920, 1080);
+        // トランジションのレンダリング解像度は NDI Config に従う
+        var renderWidth = ndiConfig.ResolutionWidth;
+        var renderHeight = ndiConfig.ResolutionHeight;
 
-        var output = new SKBitmap(1920, 1080, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var fromBitmap = Render(from, renderWidth, renderHeight);
+        using var toBitmap = Render(to, renderWidth, renderHeight);
+
+        var output = new SKBitmap(renderWidth, renderHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(output);
         canvas.Clear(SKColors.Transparent);
 
         // Basic slide transition (left to right)
         if (string.Equals(config.InType, "slide", StringComparison.OrdinalIgnoreCase))
         {
-            var x = 1920f * (1f - p);
+            var x = (float)renderWidth * (1f - p);
             canvas.DrawBitmap(fromBitmap, 0, 0);
             canvas.DrawBitmap(toBitmap, x, 0);
             return output;
