@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NdiTelop.Views.MainWindow"
+        Width="1280"
+        Height="720"
+        Title="NdiTelop">
+  <Grid>
+    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="NdiTelop Phase 0" />
+  </Grid>
+</Window>
