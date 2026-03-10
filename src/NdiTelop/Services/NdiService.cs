@@ -24,7 +24,7 @@ public class NdiService : INdiService
         if (IsInitialized) return;
 
         _ndiConfig = config;
-        _ndiSender = new NewTek.NDI.Sender(config.SourceName, true, false, null);
+        _ndiSender = new NewTek.NDI.Sender(config.SourceName, true, false, Array.Empty<string>());
 
         await Task.CompletedTask;
     }

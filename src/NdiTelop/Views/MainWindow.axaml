@@ -27,7 +27,7 @@
 
     <!-- Center Column: Preview Area -->
     <Border Grid.Column="1" Margin="10" BorderBrush="#333" BorderThickness="1" Background="Black">
-      <ctrl:PreviewCanvas DataContext="{Binding SelectedPreset}" />
+      <ctrl:PreviewCanvas DataContext="{Binding SelectedPreset}" NdiConfig="{Binding NdiConfig}" />
     </Border>
 
     <!-- Right Column: Preset Editor and NDI Controls -->
@@ -46,7 +46,7 @@
       <Separator Margin="0,10" />
 
       <TextBlock Text="NDI Controls" FontWeight="Bold" Margin="0,0,0,5" />
-      <Button Content="Initialize NDI" Command="{Binding InitializeNdiCommand}" HorizontalAlignment="Stretch" IsEnabled="{!Binding IsNdiInitialized}" />
+      <Button Content="Initialize NDI" Command="{Binding InitializeNdiCommand}" HorizontalAlignment="Stretch" IsEnabled="{Binding CanInitializeNdi}" />
       <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0">
         <CheckBox IsChecked="{Binding IsProgramActive}" Command="{Binding SetProgramActiveCommand}" CommandParameter="{Binding IsChecked, RelativeSource={RelativeSource Self}}">Program</CheckBox>
         <CheckBox IsChecked="{Binding IsPreviewActive}" Command="{Binding SetPreviewActiveCommand}" CommandParameter="{Binding IsChecked, RelativeSource={RelativeSource Self}}">Preview</CheckBox>

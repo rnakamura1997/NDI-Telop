@@ -30,6 +30,21 @@ public partial class PreviewCanvas : UserControl
         }
     }
 
+    public static readonly DirectProperty<PreviewCanvas, NdiConfig?> NdiConfigProperty =
+        AvaloniaProperty.RegisterDirect<PreviewCanvas, NdiConfig?>(
+            nameof(NdiConfig), o => o.NdiConfig, (o, v) => o.NdiConfig = v);
+
+    private NdiConfig? _ndiConfig;
+    public NdiConfig? NdiConfig
+    {
+        get => _ndiConfig;
+        set
+        {
+            SetAndRaise(NdiConfigProperty, ref _ndiConfig, value);
+            InvalidateVisual(); // Request redraw when NDI config changes
+        }
+    }
+
     public PreviewCanvas()
     {
         InitializeComponent();
@@ -41,18 +56,23 @@ public partial class PreviewCanvas : UserControl
     {
         base.Render(context);
 
-        if (Preset == null) return;
+        if (Preset == null || NdiConfig == null) return;
 
         // Dispose previous bitmap if exists
         _renderedBitmap?.Dispose();
 
-        // Render the preset to a new bitmap
-        _renderedBitmap = _renderService.Render(Preset, (int)Bounds.Width, (int)Bounds.Height);
+        // Render the preset to a new bitmap using NDI config resolution
+        _renderedBitmap = _renderService.Render(Preset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
 
         if (_renderedBitmap != null)
         {
-            var image = new Avalonia.Media.Imaging.Bitmap(_renderedBitmap.Encode(SKEncodedImageFormat.Png, 100).AsStream());
-            context.DrawImage(image, new Rect(Bounds.Size));
+            // Scale the rendered bitmap to fit the control's bounds for display
+            var scaleMatrix = Matrix.CreateScale(Bounds.Width / NdiConfig.ResolutionWidth, Bounds.Height / NdiConfig.ResolutionHeight);
+            using (context.PushTransform(scaleMatrix))
+            {
+                var image = new Avalonia.Media.Imaging.Bitmap(_renderedBitmap.Encode(SKEncodedImageFormat.Png, 100).AsStream());
+                context.DrawImage(image, new Rect(0, 0, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight));
+            }
         }
     }
 

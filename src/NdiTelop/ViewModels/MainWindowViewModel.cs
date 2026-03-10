@@ -21,13 +21,25 @@ public partial class MainWindowViewModel : ObservableObject
     private string _status = "Ready";
 
     [ObservableProperty]
-    private Preset? _selectedPreset;
+    private Preset? _selectedPreset = new() { Name = "New Preset", TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
+
+    partial void OnSelectedPresetChanged(Preset? value)
+    {
+        // SelectedPreset が null になることはないため、このロジックは不要
+    }
 
     [ObservableProperty]
     private NdiConfig _ndiConfig = new() { SourceName = "NdiTelop", ResolutionWidth = 1920, ResolutionHeight = 1080, FrameRateN = 30000, FrameRateD = 1001 };
 
     [ObservableProperty]
     private bool _isNdiInitialized;
+
+    public bool CanInitializeNdi => !IsNdiInitialized;
+
+    partial void OnIsNdiInitializedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanInitializeNdi));
+    }
 
     [ObservableProperty]
     private bool _isProgramActive;
@@ -142,15 +154,15 @@ public partial class MainWindowViewModel : ObservableObject
         Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
     }
 
-    private void NdiSendTimer_Tick(object? sender, EventArgs e)
+    private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
         if (SelectedPreset == null || !_ndiService.IsInitialized) return;
 
         try
         {
             using var bitmap = _renderService.Render(SelectedPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
-            _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap).FireAndForget();
-            _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap).FireAndForget();
+            await _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap);
+            await _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap);
         }
         catch (Exception ex)
         {
