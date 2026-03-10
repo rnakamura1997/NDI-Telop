@@ -14,6 +14,7 @@ public class RenderService : IRenderService
 
         DrawBackground(canvas, preset.Background, width, height);
         DrawTextLines(canvas, preset.TextLines, width, height);
+        DrawOverlays(canvas, preset.Overlays, width, height);
 
         return bitmap;
     }
@@ -59,6 +60,28 @@ public class RenderService : IRenderService
         var c = SKColor.Parse(bg.Color).WithAlpha((byte)(Math.Clamp(bg.Alpha, 0f, 1f) * 255));
         using var paint = new SKPaint { Color = c };
         canvas.DrawRect(0, 0, width, height, paint);
+    }
+
+    private static void DrawOverlays(SKCanvas canvas, IReadOnlyList<OverlayItem> overlays, int width, int height)
+    {
+        foreach (var overlay in overlays)
+        {
+            if (string.IsNullOrEmpty(overlay.Path) || !System.IO.File.Exists(overlay.Path)) continue;
+
+            using var image = SKBitmap.Decode(overlay.Path);
+            if (image == null) continue;
+
+            using var paint = new SKPaint
+            {
+                Color = SKColors.White.WithAlpha((byte)(overlay.Opacity * 255)),
+                IsAntialias = true
+            };
+
+            var drawWidth = overlay.Width > 0 ? overlay.Width : image.Width;
+            var drawHeight = overlay.Height > 0 ? overlay.Height : image.Height;
+            var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
+            canvas.DrawBitmap(image, destRect, paint);
+        }
     }
 
     private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, int width, int height)

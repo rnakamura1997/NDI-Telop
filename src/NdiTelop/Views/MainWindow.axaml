@@ -4,6 +4,7 @@
         xmlns:ctrl="using:NdiTelop.Controls"
         xmlns:i="using:Avalonia.Xaml.Interactivity"
         xmlns:core="using:Avalonia.Xaml.Interactions.Core"
+        xmlns:conv="using:NdiTelop.Converters"
         x:Class="NdiTelop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1280" Height="720"
@@ -11,6 +12,10 @@
   <Design.DataContext>
     <vm:MainWindowViewModel />
   </Design.DataContext>
+
+  <Window.Resources>
+    <conv:StringToColorConverter x:Key="StringToColorConverter" />
+  </Window.Resources>
   <Grid ColumnDefinitions="250,*,250" RowDefinitions="*,Auto">
     <!-- Left Column: Preset List and Controls -->
     <StackPanel Grid.Column="0" Margin="10" Spacing="5">
@@ -40,10 +45,12 @@
       <TextBox Text="{Binding SelectedPreset.Name}" />
       <TextBlock Text="Text Line 1:" />
       <TextBox Text="{Binding SelectedPreset.TextLines[0].Text}" />
+      <TextBlock Text="Font Family:" />
+      <ComboBox ItemsSource="{Binding AvailableFontFamilies}" SelectedItem="{Binding SelectedPreset.TextLines[0].FontFamily}" HorizontalAlignment="Stretch" />
       <TextBlock Text="Font Size:" />
       <TextBox Text="{Binding SelectedPreset.TextLines[0].FontSize}" />
       <TextBlock Text="Color:" />
-      <TextBox Text="{Binding SelectedPreset.TextLines[0].Color}" />
+      <ColorPicker Color="{Binding SelectedPreset.TextLines[0].Color, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
       <Button Content="Render Preview" Command="{Binding RenderPreviewCommand}" HorizontalAlignment="Stretch" Margin="0,10,0,0" />
 
       <Separator Margin="0,10" />

@@ -48,6 +48,8 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPreviewActive;
 
+    public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
+
     [ObservableProperty]
     private Preset? _currentProgramPreset;
 
@@ -69,6 +71,12 @@ public partial class MainWindowViewModel : ObservableObject
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
         _ndiSendTimer.Tick += NdiSendTimer_Tick;
+
+        // Load available font families
+        foreach (var family in SkiaSharp.SKFontManager.Default.GetFontFamilies())
+        {
+            AvailableFontFamilies.Add(family);
+        }
 
         // コマンドの初期化
         ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);

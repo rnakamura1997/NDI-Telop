@@ -1,9 +1,24 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace NdiTelop.Models;
 
-public class OverlayItem
+public partial class OverlayItem : ObservableObject
 {
-    public string Path { get; set; } = string.Empty;
-    public int X { get; set; }
-    public int Y { get; set; }
-    public double Opacity { get; set; } = 1.0;
+    [ObservableProperty]
+    private string _path = string.Empty;
+
+    [ObservableProperty]
+    private int _x;
+
+    [ObservableProperty]
+    private int _y;
+
+    [ObservableProperty]
+    private int _width;
+
+    [ObservableProperty]
+    private int _height;
+
+    [ObservableProperty]
+    private double _opacity = 1.0;
 }
