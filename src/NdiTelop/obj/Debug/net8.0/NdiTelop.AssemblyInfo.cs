@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NdiTelop")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8fb25f8cc87f7d214afff3852a2eabe90703bbc8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+97dadaedba8a5430f33bdf95d01898863d932527")]
 [assembly: System.Reflection.AssemblyProductAttribute("NdiTelop")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NdiTelop")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
