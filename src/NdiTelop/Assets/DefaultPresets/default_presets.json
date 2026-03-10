@@ -1,0 +1,8 @@
+[
+  {"id":"artist","name":"アーティスト名","textLines":[{"text":"アーティスト名","fontFamily":"Meiryo","fontSize":72,"color":"#FFFFFFFF"}],"background":{"type":"solid","color":"#000000","alpha":0.7}},
+  {"id":"song","name":"曲名","textLines":[{"text":"曲名","fontFamily":"Meiryo","fontSize":64,"color":"#FFFF00FF"}],"background":{"type":"transparent","color":"#000000","alpha":0}},
+  {"id":"event","name":"イベント名","textLines":[{"text":"イベント名","fontFamily":"Meiryo","fontSize":88,"color":"#FFFFFFFF"}],"background":{"type":"solid","color":"#111111","alpha":0.6}},
+  {"id":"mc","name":"MC テロップ","textLines":[{"text":"MC テロップ","fontFamily":"Meiryo","fontSize":56,"color":"#FFFFFFFF"}],"background":{"type":"solid","color":"#444444","alpha":0.8}},
+  {"id":"countdown","name":"カウントダウン","textLines":[{"text":"00:10","fontFamily":"Meiryo","fontSize":120,"color":"#FFFFFFFF"}],"background":{"type":"solid","color":"#000000","alpha":0.5}},
+  {"id":"transparent","name":"透明カット","textLines":[],"background":{"type":"transparent","color":"#000000","alpha":0}}
+]

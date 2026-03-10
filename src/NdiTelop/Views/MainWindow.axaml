@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NdiTelop.Views.MainWindow"
+        Width="1200" Height="720" Title="NdiTelop Phase 1b">
+  <Grid ColumnDefinitions="320,*" RowDefinitions="*,Auto" Margin="12">
+    <StackPanel Grid.Column="0" Spacing="8">
+      <Button Content="Load Presets" Command="{Binding LoadCommand}" MinHeight="44" />
+      <Button Content="Preview" Command="{Binding PreviewCommand}" MinHeight="44" />
+      <Button Content="Take" Command="{Binding TakeCommand}" MinHeight="44" />
+      <Button Content="Cut" Command="{Binding CutCommand}" MinHeight="44" />
+      <ListBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </StackPanel>
+
+    <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" Margin="12,0,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <TextBlock Text="Preview:" FontWeight="Bold" />
+        <TextBlock Text="{Binding PreviewPreset.Name}" />
+        <TextBlock Text="Program:" FontWeight="Bold" Margin="16,0,0,0" />
+        <TextBlock Text="{Binding ProgramPreset.Name}" />
+      </StackPanel>
+
+      <Border Grid.Row="1" Background="#202020" CornerRadius="6" Padding="12" Margin="0,8,0,8">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+          <TextBlock Text="Preview Area" />
+          <TextBlock Text="{Binding SelectedPreset.Name}" />
+          <TextBlock Text="{Binding IsOnAir, StringFormat='On Air: {0}'}" />
+          <TextBlock Text="{Binding IsPreviewReady, StringFormat='Preview Ready: {0}'}" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Grid.Row="2" Text="{Binding Status}" />
+    </Grid>
+  </Grid>
+</Window>
