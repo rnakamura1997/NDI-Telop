@@ -1,7 +1,2 @@
 namespace NdiTelop.Models;
-
-public enum NdiChannelType
-{
-    Program,
-    Preview
-}
+public enum NdiChannelType { Program, Preview }

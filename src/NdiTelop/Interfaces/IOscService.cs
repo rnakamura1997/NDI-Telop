@@ -1,5 +1,4 @@
 namespace NdiTelop.Interfaces;
-
 public interface IOscService
 {
     int ReceivePort { get; set; }

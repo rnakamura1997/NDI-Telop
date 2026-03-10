@@ -3,73 +3,50 @@ using NdiTelop.Models;
 
 namespace NdiTelop.Services;
 
-/// <summary>
-/// プリセット管理サービス。
-/// </summary>
 public class PresetService : IPresetService
 {
     private readonly List<Preset> _presets = [];
-    private readonly PresetJsonRepository _repository;
+    private readonly PresetStorage _storage = new();
+    private readonly string _userPresetPath;
+    private readonly string _defaultPresetPath;
 
     public PresetService()
-        : this(CreateDefaultRepository())
     {
-    }
-
-    public PresetService(PresetJsonRepository repository)
-    {
-        _repository = repository;
+        var baseDir = AppContext.BaseDirectory;
+        _userPresetPath = Path.Combine(baseDir, "data", "presets.json");
+        _defaultPresetPath = Path.Combine(baseDir, "Assets", "DefaultPresets", "default_presets.json");
     }
 
     public IReadOnlyList<Preset> Presets => _presets;
 
     public async Task LoadPresetsAsync()
     {
-        var loaded = await _repository.LoadAllAsync();
         _presets.Clear();
-        _presets.AddRange(loaded);
+        var userPresets = await _storage.LoadFromFileAsync(_userPresetPath);
+        if (userPresets.Count > 0)
+        {
+            _presets.AddRange(userPresets);
+            return;
+        }
+
+        var defaultPresets = await _storage.LoadFromFileAsync(_defaultPresetPath);
+        _presets.AddRange(defaultPresets);
     }
 
     public async Task SavePresetAsync(Preset preset)
     {
-        await _repository.SaveAsync(preset);
-
-        var index = _presets.FindIndex(x => x.Id == preset.Id);
-        if (index >= 0)
-        {
-            _presets[index] = preset;
-        }
-        else
-        {
-            _presets.Add(preset);
-        }
+        var idx = _presets.FindIndex(x => x.Id == preset.Id);
+        if (idx >= 0) _presets[idx] = preset;
+        else _presets.Add(preset);
+        await _storage.SaveToFileAsync(_userPresetPath, _presets);
     }
 
     public async Task DeletePresetAsync(string id)
     {
-        await _repository.DeleteAsync(id);
         _presets.RemoveAll(x => x.Id == id);
+        await _storage.SaveToFileAsync(_userPresetPath, _presets);
     }
 
-    public Task ImportFromCsvAsync(string filePath)
-    {
-        // Phase4 実装予定
-        return Task.CompletedTask;
-    }
-
-    public Task ExportToCsvAsync(string filePath)
-    {
-        // Phase4 実装予定
-        return Task.CompletedTask;
-    }
-
-    private static PresetJsonRepository CreateDefaultRepository()
-    {
-        var baseDir = AppContext.BaseDirectory;
-        var paths = new PresetStoragePaths(
-            Path.Combine(baseDir, "data", "presets"),
-            Path.Combine(baseDir, "Assets", "DefaultPresets", "default_presets.json"));
-
-        return new PresetJsonRepository(paths);
-    }
+    public Task ImportFromCsvAsync(string filePath) => Task.CompletedTask;
+    public Task ExportToCsvAsync(string filePath) => Task.CompletedTask;
 }

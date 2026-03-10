@@ -1,5 +1,4 @@
 namespace NdiTelop.Interfaces;
-
 public interface IOutputService
 {
     Task StartVirtualCameraAsync();

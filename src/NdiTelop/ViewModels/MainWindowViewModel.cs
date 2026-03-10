@@ -1,88 +1,48 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NdiTelop.Interfaces;
 using NdiTelop.Models;
+using NdiTelop.Services;
 
 namespace NdiTelop.ViewModels;
 
-/// <summary>
-/// メイン画面 ViewModel（Phase1）。
-/// </summary>
 public partial class MainWindowViewModel : ObservableObject
 {
-    private readonly IPresetService _presetService;
-    private readonly IRenderService _renderService;
-    private readonly INdiService _ndiService;
+    private readonly RenderService _renderService;
+    private readonly PresetService _presetService;
 
     [ObservableProperty]
-    private string _title = "NdiTelop";
-
-    [ObservableProperty]
-    private string _statusMessage = "Ready";
+    private string _status = "Ready";
 
     [ObservableProperty]
     private Preset? _selectedPreset;
 
-    [ObservableProperty]
-    private bool _isImmediateSendMode = true;
-
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
-    public MainWindowViewModel(IPresetService presetService, IRenderService renderService, INdiService ndiService)
+    public MainWindowViewModel(RenderService renderService, PresetService presetService)
     {
-        _presetService = presetService;
         _renderService = renderService;
-        _ndiService = ndiService;
-
-        SendCommand = new AsyncRelayCommand(SendSelectedPresetAsync, () => SelectedPreset is not null);
-        PreviewCommand = new AsyncRelayCommand(PreviewSelectedPresetAsync, () => SelectedPreset is not null);
-        InitializeCommand = new AsyncRelayCommand(InitializeAsync);
+        _presetService = presetService;
     }
 
-    public IAsyncRelayCommand InitializeCommand { get; }
-    public IAsyncRelayCommand SendCommand { get; }
-    public IAsyncRelayCommand PreviewCommand { get; }
-
-    partial void OnSelectedPresetChanged(Preset? value)
-    {
-        SendCommand.NotifyCanExecuteChanged();
-        PreviewCommand.NotifyCanExecuteChanged();
-    }
-
-    private async Task InitializeAsync()
+    [RelayCommand]
+    public async Task LoadAsync()
     {
         await _presetService.LoadPresetsAsync();
-        SelectedPreset = _presetService.Presets.FirstOrDefault();
-
-        await _ndiService.InitializeAsync(new NdiConfig());
-        await _ndiService.SetActiveAsync(NdiChannelType.Program, true);
-        await _ndiService.SetActiveAsync(NdiChannelType.Preview, true);
-
+        SelectedPreset = Presets.FirstOrDefault();
         OnPropertyChanged(nameof(Presets));
-        StatusMessage = $"プリセット数: {_presetService.Presets.Count}";
+        Status = $"Loaded {Presets.Count} presets";
     }
 
-    private async Task SendSelectedPresetAsync()
+    [RelayCommand]
+    public void RenderPreview()
     {
         if (SelectedPreset is null)
         {
+            Status = "No preset selected";
             return;
         }
 
-        using var bitmap = _renderService.Render(SelectedPreset, 1920, 1080);
-        await _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap);
-        StatusMessage = $"PGM送出: {SelectedPreset.Name}";
-    }
-
-    private async Task PreviewSelectedPresetAsync()
-    {
-        if (SelectedPreset is null)
-        {
-            return;
-        }
-
-        using var bitmap = _renderService.Render(SelectedPreset, 1920, 1080);
-        await _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap);
-        StatusMessage = $"PVW送出: {SelectedPreset.Name}";
+        using var bmp = _renderService.Render(SelectedPreset, 1280, 720);
+        Status = $"Rendered {bmp.Width}x{bmp.Height}: {SelectedPreset.Name}";
     }
 }

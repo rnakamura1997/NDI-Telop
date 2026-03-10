@@ -1,41 +1,24 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="NdiTelop.Views.MainWindow"
-        Width="1280"
-        Height="720"
-        Title="{Binding Title}">
-  <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="300,*" Margin="12">
-    <TextBlock Grid.ColumnSpan="2" FontSize="20" FontWeight="Bold" Text="NdiTelop Phase 1" Margin="0,0,0,8"/>
+        Width="1200" Height="720" Title="NdiTelop Phase 1a">
+  <Grid ColumnDefinitions="300,*" RowDefinitions="*,Auto" Margin="12">
+    <StackPanel Grid.Column="0" Spacing="8">
+      <Button Content="Load Presets" Command="{Binding LoadCommand}" MinHeight="44" />
+      <Button Content="Render Preview" Command="{Binding RenderPreviewCommand}" MinHeight="44" />
+      <ListBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </StackPanel>
 
-    <Border Grid.Row="1" Grid.Column="0" Background="#1E1E1E" CornerRadius="6" Padding="8">
-      <StackPanel Spacing="8">
-        <Button Content="初期化" Command="{Binding InitializeCommand}" Height="44" />
-        <TextBlock Text="プリセット" FontWeight="SemiBold" />
-        <ListBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding Name}" />
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </StackPanel>
+    <Border Grid.Column="1" Background="#202020" Margin="12,0,0,0" CornerRadius="6">
+      <TextBlock Text="Preview Area" HorizontalAlignment="Center" VerticalAlignment="Center"/>
     </Border>
 
-    <Border Grid.Row="1" Grid.Column="1" Background="#2A2A2A" CornerRadius="6" Padding="12" Margin="12,0,0,0">
-      <StackPanel Spacing="12">
-        <TextBlock Text="プレビューキャンバス" FontSize="16" />
-        <Border Height="420" Background="#111111" CornerRadius="4">
-          <TextBlock Text="16:9 Preview" HorizontalAlignment="Center" VerticalAlignment="Center" />
-        </Border>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="PVW" Command="{Binding PreviewCommand}" Height="44" MinWidth="88" />
-          <Button Content="SEND" Command="{Binding SendCommand}" Height="44" MinWidth="88" />
-        </StackPanel>
-      </StackPanel>
-    </Border>
-
-    <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,8,0,0" Padding="8" CornerRadius="4" Background="#252525">
-      <TextBlock Text="{Binding StatusMessage}" />
-    </Border>
+    <TextBlock Grid.ColumnSpan="2" Grid.Row="1" Text="{Binding Status}" Margin="0,8,0,0" />
   </Grid>
 </Window>

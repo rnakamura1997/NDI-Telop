@@ -1,7 +1,6 @@
 using NdiTelop.Models;
 
 namespace NdiTelop.Interfaces;
-
 public interface ISettingsService
 {
     AppSettings Settings { get; }

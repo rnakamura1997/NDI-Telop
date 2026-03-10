@@ -1,7 +1,6 @@
 using NdiTelop.Models;
 
 namespace NdiTelop.Interfaces;
-
 public interface IPresetService
 {
     IReadOnlyList<Preset> Presets { get; }
