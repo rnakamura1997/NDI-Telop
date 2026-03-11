@@ -73,7 +73,7 @@ public class RenderService : IRenderService
 
             using var paint = new SKPaint
             {
-                Color = SKColors.White.WithAlpha((byte)(overlay.Opacity * 255)),
+                Color = SKColors.White.WithAlpha((byte)(Math.Clamp(overlay.Opacity, 0.0, 1.0) * 255)),
                 IsAntialias = true
             };
 

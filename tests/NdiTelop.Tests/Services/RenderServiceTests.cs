@@ -69,4 +69,90 @@ public class RenderServiceTests
         Assert.Equal(1080, bitmap.Height);
         Assert.False(bitmap.Pixels.All(p => p == 0));
     }
+
+    [Fact]
+    public void Render_WithTransparentBackground_ShouldKeepPixelTransparentWhenNoForeground()
+    {
+        var service = new RenderService();
+        var preset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextLines = []
+        };
+
+        using var bitmap = service.Render(preset, 64, 64);
+        var center = bitmap.GetPixel(32, 32);
+
+        Assert.Equal((byte)0, center.Alpha);
+        Assert.Equal((byte)0, center.Red);
+        Assert.Equal((byte)0, center.Green);
+        Assert.Equal((byte)0, center.Blue);
+    }
+
+    [Fact]
+    public void Render_WithSemiTransparentBackground_ShouldOutputExpectedAlpha()
+    {
+        var service = new RenderService();
+        var preset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "solid", Color = "#FF0000", Alpha = 0.5 },
+            TextLines = []
+        };
+
+        using var bitmap = service.Render(preset, 64, 64);
+        var center = bitmap.GetPixel(32, 32);
+
+        Assert.InRange(center.Alpha, (byte)126, (byte)129);
+    }
+
+    [Fact]
+    public void Render_WithOverlayOpacityOutOfRange_ShouldClampOpacity()
+    {
+        var service = new RenderService();
+        using var overlayBitmap = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var overlayCanvas = new SKCanvas(overlayBitmap))
+        {
+            overlayCanvas.Clear(SKColors.White);
+        }
+
+        var overlayPath = Path.Combine(Path.GetTempPath(), $"overlay-{Guid.NewGuid():N}.png");
+        try
+        {
+            using (var image = SKImage.FromBitmap(overlayBitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(overlayPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            var transparentPreset = new Preset
+            {
+                Background = new BackgroundStyle { Type = "transparent" },
+                TextLines = [],
+                Overlays = [new OverlayItem { Path = overlayPath, X = 1, Y = 1, Width = 2, Height = 2, Opacity = -0.5 }]
+            };
+
+            using var fullyTransparent = service.Render(transparentPreset, 8, 8);
+            var transparentPixel = fullyTransparent.GetPixel(2, 2);
+            Assert.Equal((byte)0, transparentPixel.Alpha);
+
+            var opaquePreset = new Preset
+            {
+                Background = new BackgroundStyle { Type = "transparent" },
+                TextLines = [],
+                Overlays = [new OverlayItem { Path = overlayPath, X = 1, Y = 1, Width = 2, Height = 2, Opacity = 2.0 }]
+            };
+
+            using var opaque = service.Render(opaquePreset, 8, 8);
+            var opaquePixel = opaque.GetPixel(2, 2);
+            Assert.Equal((byte)255, opaquePixel.Alpha);
+        }
+        finally
+        {
+            if (File.Exists(overlayPath))
+            {
+                File.Delete(overlayPath);
+            }
+        }
+    }
 }

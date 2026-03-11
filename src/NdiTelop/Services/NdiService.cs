@@ -81,7 +81,6 @@ public class NdiService : INdiService
         await Task.CompletedTask;
     }
 
-
     private static bool IsRuntimeSupported()
     {
         var isSupportedProperty = typeof(NewTek.NDIlib).GetProperty("IsSupported", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
