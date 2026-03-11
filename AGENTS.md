@@ -1,13 +1,12 @@
 # AGENTS.md
 
-このリポジトリでは、Codex は以下を必ず守ること。
+このリポジトリでは、AIエージェント（Codex等）は以下を必ず守ること。
 
 ## 0. 作業開始条件
 - このタスクは **main ブランチ起点の最新スナップショット** から開始されている前提とする。
 - **シェルから `git fetch` / `git pull` を必須条件にしないこと。**
-  - Codex Cloud では agent phase でネットワーク制限があり得るため、GitHub 上で選択されたベースブランチのスナップショットを信頼すること。
-  - もし task のベースが `main` ではないと判断した場合は、変更せず停止して「main 起点でタスクを作り直してください」と報告すること。
-- `docs/spec.md` `docs/phase-plan.md` `docs/protected-files.md` を最初に読むこと。
+- もし task のベースが `main` ではないと判断した場合は、変更せず停止して「main 起点でタスクを作り直してください」と報告すること。
+- **重要: `dotnet` が未導入の場合、直ちに停止するのではなく、リポジトリ直下の `setup.sh` を実行して環境構築を試みること。**
 
 ## 1. 基本ルール
 1. 今回対象のフェーズだけを実装する。
@@ -27,7 +26,7 @@ dotnet test tests/NdiTelop.Tests/NdiTelop.Tests.csproj
 ```
 
 - build/test が通らない場合はコミット・PR作成禁止。
-- `dotnet` が存在しない場合は、環境不備として停止し、必要な setup 条件を報告する。
+- **`dotnet` が存在しない場合は、`chmod +x setup.sh && ./setup.sh` を実行して環境を構築すること。** 構築後も `dotnet` が利用できない場合のみ、環境不備として停止し報告すること。
 
 ## 3. 実装方針
 - 依存方向は以下のみ許可。
@@ -70,14 +69,6 @@ Phase 1 をやり直す場合は、以下の順で進める。
   - `command -v dotnet`
   - `dotnet --info`
   - `AGENTS.md`
-  - `docs/spec.md`
-  - `docs/phase-plan.md`
-  - `docs/protected-files.md`
 
-- `dotnet` が存在しない場合は、ファイル変更を一切行わず停止すること。
-
-- `docs/spec.md` / `docs/phase-plan.md` / `docs/protected-files.md` が workspace に存在しない場合でも、
-  ユーザープロンプト内に task 固有仕様が明示されていれば、その仕様を正本として作業を継続してよい。
-
-- docs 不在のみを理由に停止してはいけない。
-- build/test 前提タスクでは、`dotnet` 不在の状態で実装を始めてはいけない。
+- **`dotnet` が存在しない場合は、直ちに `chmod +x setup.sh && ./setup.sh` を実行して環境を構築し、作業を継続すること。**
+- 環境構築後も `dotnet` が利用できない場合のみ、ファイル変更を一切行わず停止すること。
