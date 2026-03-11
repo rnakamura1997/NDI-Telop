@@ -9,11 +9,17 @@ echo "NDI-Telopプロジェクトの環境構築を開始します。"
 if ! command -v dotnet &> /dev/null
 then
     echo ".NET SDK 8.0をインストールします..."
-    sudo apt update
-    sudo apt install -y dotnet-sdk-8.0
+    # Microsoftパッケージリポジトリのセットアップ
+    wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+    sudo dpkg -i packages-microsoft-prod.deb
+    rm packages-microsoft-prod.deb
+    
+    sudo apt-get update
+    sudo apt-get install -y dotnet-sdk-8.0
     echo ".NET SDK 8.0のインストールが完了しました。"
 else
     echo ".NET SDK 8.0は既にインストールされています。"
+    dotnet --version
 fi
 
 # Gitのインストール
