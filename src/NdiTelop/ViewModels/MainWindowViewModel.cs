@@ -27,7 +27,17 @@ public partial class MainWindowViewModel : ObservableObject
 
     partial void OnSelectedPresetChanged(Preset? value)
     {
-        // SelectedPreset が null になることはないため、このロジックは不要
+        OverlayItems.Clear();
+        SelectedOverlay = null;
+
+        if (value == null) return;
+
+        foreach (var overlay in value.Overlays)
+        {
+            OverlayItems.Add(overlay);
+        }
+
+        SelectedOverlay = OverlayItems.FirstOrDefault();
     }
 
 
@@ -52,9 +62,13 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isPreviewActive;
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
+    public ObservableCollection<OverlayItem> OverlayItems { get; } = new();
 
     [ObservableProperty]
     private Preset? _currentProgramPreset;
+
+    [ObservableProperty]
+    private OverlayItem? _selectedOverlay;
 
 
 
@@ -188,6 +202,45 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }
+
+    [RelayCommand]
+    public void AddOverlay()
+    {
+        if (SelectedPreset == null)
+        {
+            Status = "No preset selected.";
+            return;
+        }
+
+        var overlay = new OverlayItem
+        {
+            X = 0,
+            Y = 0,
+            Width = 300,
+            Height = 120,
+            Opacity = 1
+        };
+
+        SelectedPreset.Overlays.Add(overlay);
+        OverlayItems.Add(overlay);
+        SelectedOverlay = overlay;
+        Status = "Overlay added.";
+    }
+
+    [RelayCommand]
+    public void RemoveSelectedOverlay()
+    {
+        if (SelectedPreset == null || SelectedOverlay == null)
+        {
+            Status = "No overlay selected.";
+            return;
+        }
+
+        SelectedPreset.Overlays.Remove(SelectedOverlay);
+        OverlayItems.Remove(SelectedOverlay);
+        SelectedOverlay = OverlayItems.FirstOrDefault();
+        Status = "Overlay removed.";
+    }
 
     private async Task ShowPresetAsync(Preset? preset)
     {
