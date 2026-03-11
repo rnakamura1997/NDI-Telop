@@ -26,7 +26,10 @@ public class NdiService : INdiService
 
         if (!NDIlib.IsSupported)
         {
-            throw new InvalidOperationException("NDI runtime is not supported or not installed.");
+            // NDIランタイムがサポートされていない、またはインストールされていない場合、NDI機能を無効化する
+            Console.WriteLine("NDI runtime is not supported or not installed. NDI features will be disabled.");
+            _ndiSender = null; // NDI機能を無効化するため、senderをnullに設定
+            return;
         }
 
         _ndiConfig = config;
@@ -37,7 +40,11 @@ public class NdiService : INdiService
 
     public async Task SendFrameAsync(NdiChannelType channel, SKBitmap frame)
     {
-        if (!IsInitialized || _ndiSender == null || _ndiConfig == null) return;
+        if (!IsInitialized || _ndiSender == null || _ndiConfig == null)
+        {
+            Console.WriteLine($"NDI service not initialized or sender is null for channel {channel}.");
+            return;
+        }
 
         if (channel == NdiChannelType.Program && !IsProgramActive) return;
         if (channel == NdiChannelType.Preview && !IsPreviewActive) return;
@@ -68,7 +75,11 @@ public class NdiService : INdiService
 
     public async Task SetActiveAsync(NdiChannelType channel, bool active)
     {
-        if (!IsInitialized) return;
+        if (!IsInitialized)
+        {
+            Console.WriteLine($"NDI service not initialized for channel {channel}.");
+            return;
+        }
 
         if (channel == NdiChannelType.Program)
         {
