@@ -12,6 +12,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.*" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.*" />
     <PackageReference Include="Avalonia.ReactiveUI" Version="11.*" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="11.*" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
     <PackageReference Include="SkiaSharp" Version="3.119.2" />
     <PackageReference Include="Avalonia.Skia" Version="11.3.12" />
