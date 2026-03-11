@@ -17,6 +17,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly RenderService _renderService;
     private readonly IPresetService _presetService;
     private readonly INdiService _ndiService;
+    private readonly ISettingsService _settingsService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -27,23 +28,19 @@ public partial class MainWindowViewModel : ObservableObject
 
     partial void OnSelectedPresetChanged(Preset? value)
     {
-        OverlayItems.Clear();
-        SelectedOverlay = null;
-
-        if (value == null) return;
-
-        foreach (var overlay in value.Overlays)
-        {
-            OverlayItems.Add(overlay);
-        }
-
-        SelectedOverlay = OverlayItems.FirstOrDefault();
+        // SelectedPreset が null になることはないため、このロジックは不要
     }
 
 
 
     [ObservableProperty]
     private NdiConfig _ndiConfig = new() { SourceName = "NdiTelop", ResolutionWidth = 1920, ResolutionHeight = 1080, FrameRateN = 30000, FrameRateD = 1001 };
+
+    partial void OnNdiConfigChanged(NdiConfig value)
+    {
+        if (value.FrameRateN <= 0 || value.FrameRateD <= 0) return;
+        _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (value.FrameRateN / (double)value.FrameRateD));
+    }
 
     [ObservableProperty]
     private bool _isNdiInitialized;
@@ -62,13 +59,9 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isPreviewActive;
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
-    public ObservableCollection<OverlayItem> OverlayItems { get; } = new();
 
     [ObservableProperty]
     private Preset? _currentProgramPreset;
-
-    [ObservableProperty]
-    private OverlayItem? _selectedOverlay;
 
 
 
@@ -85,11 +78,12 @@ public partial class MainWindowViewModel : ObservableObject
 
 
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService)
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService)
     {
         _renderService = renderService;
         _presetService = presetService;
         _ndiService = ndiService;
+        _settingsService = settingsService;
 
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
@@ -112,6 +106,7 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     public async Task LoadPresetsAsync()
     {
+        await LoadAppSettingsAsync();
         await _presetService.LoadPresetsAsync();
         SelectedPreset = Presets.FirstOrDefault();
         Status = $"Loaded {Presets.Count} presets.";
@@ -168,6 +163,36 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
+    public async Task LoadAppSettingsAsync()
+    {
+        try
+        {
+            await _settingsService.LoadAsync();
+            NdiConfig = CloneNdiConfig(_settingsService.Settings.Ndi);
+            Status = "App settings loaded.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error loading app settings: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task SaveAppSettingsAsync()
+    {
+        try
+        {
+            _settingsService.Settings.Ndi = CloneNdiConfig(NdiConfig);
+            await _settingsService.SaveAsync();
+            Status = "App settings saved.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error saving app settings: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
     public async Task InitializeNdiAsync()
     {
         if (_ndiService.IsInitialized) return;
@@ -203,48 +228,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }
 
-    [RelayCommand]
-    public void AddOverlay()
+    private Task ShowPresetAsync(Preset? preset)
     {
-        if (SelectedPreset == null)
-        {
-            Status = "No preset selected.";
-            return;
-        }
-
-        var overlay = new OverlayItem
-        {
-            X = 0,
-            Y = 0,
-            Width = 300,
-            Height = 120,
-            Opacity = 1
-        };
-
-        SelectedPreset.Overlays.Add(overlay);
-        OverlayItems.Add(overlay);
-        SelectedOverlay = overlay;
-        Status = "Overlay added.";
-    }
-
-    [RelayCommand]
-    public void RemoveSelectedOverlay()
-    {
-        if (SelectedPreset == null || SelectedOverlay == null)
-        {
-            Status = "No overlay selected.";
-            return;
-        }
-
-        SelectedPreset.Overlays.Remove(SelectedOverlay);
-        OverlayItems.Remove(SelectedOverlay);
-        SelectedOverlay = OverlayItems.FirstOrDefault();
-        Status = "Overlay removed.";
-    }
-
-    private async Task ShowPresetAsync(Preset? preset)
-    {
-        if (preset == null || CurrentProgramPreset == preset) return;
+        if (preset == null || CurrentProgramPreset == preset) return Task.CompletedTask;
 
         _transitionFromPreset = CurrentProgramPreset ?? new Preset(); // If null, transition from empty
         _transitionToPreset = preset;
@@ -258,16 +244,20 @@ public partial class MainWindowViewModel : ObservableObject
         CurrentProgramPreset = preset;
 
         // AutoClearSeconds の設定
-        if (CurrentProgramPreset.AutoClearSeconds > 0)
+        if (_autoClearTimer == null) return Task.CompletedTask;
+
+        if (preset.AutoClearSeconds > 0)
         {
-            _autoClearTimer?.Stop();
-            _autoClearTimer.Interval = TimeSpan.FromSeconds(CurrentProgramPreset.AutoClearSeconds);
+            _autoClearTimer.Stop();
+            _autoClearTimer.Interval = TimeSpan.FromSeconds(preset.AutoClearSeconds);
             _autoClearTimer.Start();
         }
         else
         {
-            _autoClearTimer?.Stop();
+            _autoClearTimer.Stop();
         }
+
+        return Task.CompletedTask;
     }
 
     private void TransitionTimer_Tick(object? sender, EventArgs e)
@@ -294,7 +284,7 @@ public partial class MainWindowViewModel : ObservableObject
         // 実際には CurrentProgramPreset.AutoClearSeconds を使用する
         if (CurrentProgramPreset.AutoClearSeconds > 0 && _ndiService.IsProgramActive)
         {
-            // カウントダウンロジック
+            // カウンダウンロジック
             // ここでは簡略化のため、タイマーが発火したらすぐにクリアする
             // 実際には経過時間を保持し、AutoClearSeconds に達したらクリアする
             await ClearProgram();
@@ -319,6 +309,18 @@ public partial class MainWindowViewModel : ObservableObject
         CurrentProgramPreset = null;
         Status = "Program cleared.";
     }
+    private static NdiConfig CloneNdiConfig(NdiConfig source)
+    {
+        return new NdiConfig
+        {
+            SourceName = source.SourceName,
+            ResolutionWidth = source.ResolutionWidth,
+            ResolutionHeight = source.ResolutionHeight,
+            FrameRateN = source.FrameRateN,
+            FrameRateD = source.FrameRateD
+        };
+    }
+
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
         if (CurrentProgramPreset == null || !_ndiService.IsInitialized) return;
