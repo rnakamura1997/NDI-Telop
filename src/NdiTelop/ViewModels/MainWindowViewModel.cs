@@ -78,12 +78,12 @@ public partial class MainWindowViewModel : ObservableObject
 
 
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService? settingsService = null)
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService)
     {
         _renderService = renderService;
         _presetService = presetService;
         _ndiService = ndiService;
-        _settingsService = settingsService ?? new SettingsService();
+        _settingsService = settingsService;
 
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
