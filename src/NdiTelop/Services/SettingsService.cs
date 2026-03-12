@@ -27,9 +27,24 @@ public class SettingsService : ISettingsService
 
         await using var stream = File.OpenRead(_settingsFilePath);
         var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(stream, _options);
-        if (loaded != null)
+        if (loaded == null)
         {
-            Settings = loaded;
+            return;
+        }
+
+        Settings = loaded;
+
+        await using var compatibilityStream = File.OpenRead(_settingsFilePath);
+        using var json = await JsonDocument.ParseAsync(compatibilityStream);
+
+        if (json.RootElement.TryGetProperty("HttpPort", out var httpPortElement) && Settings.WebApiPort == 5000)
+        {
+            Settings.WebApiPort = httpPortElement.GetInt32();
+        }
+
+        if (json.RootElement.TryGetProperty("OscReceivePort", out var oscPortElement) && Settings.OscPort == 8000)
+        {
+            Settings.OscPort = oscPortElement.GetInt32();
         }
     }
 
