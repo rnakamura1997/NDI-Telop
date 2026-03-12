@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using NdiTelop.Utils;
 using SkiaSharp;
+using System.ComponentModel;
 
 namespace NdiTelop.ViewModels;
 
@@ -28,7 +29,8 @@ public partial class MainWindowViewModel : ObservableObject
 
     partial void OnSelectedPresetChanged(Preset? value)
     {
-        // SelectedPreset が null になることはないため、このロジックは不要
+        AttachOverlayListeners(value);
+        OnPropertyChanged(nameof(SelectedPreset));
     }
 
 
@@ -64,6 +66,40 @@ public partial class MainWindowViewModel : ObservableObject
     private Preset? _currentProgramPreset;
 
 
+
+
+    private Preset? _overlayBoundPreset;
+
+    private void AttachOverlayListeners(Preset? preset)
+    {
+        if (_overlayBoundPreset != null)
+        {
+            foreach (var overlay in _overlayBoundPreset.Overlays)
+            {
+                overlay.PropertyChanged -= OverlayItem_PropertyChanged;
+            }
+        }
+
+        _overlayBoundPreset = preset;
+
+        if (_overlayBoundPreset == null)
+        {
+            return;
+        }
+
+        foreach (var overlay in _overlayBoundPreset.Overlays)
+        {
+            overlay.PropertyChanged += OverlayItem_PropertyChanged;
+        }
+    }
+
+    private void OverlayItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(OverlayItem.Opacity) or nameof(OverlayItem.IsVisible))
+        {
+            OnPropertyChanged(nameof(SelectedPreset));
+        }
+    }
 
     private DispatcherTimer? _autoClearTimer;
 

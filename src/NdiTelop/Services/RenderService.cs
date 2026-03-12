@@ -66,7 +66,7 @@ public class RenderService : IRenderService
     {
         foreach (var overlay in overlays)
         {
-            if (string.IsNullOrEmpty(overlay.Path) || !System.IO.File.Exists(overlay.Path)) continue;
+            if (!overlay.IsVisible || string.IsNullOrEmpty(overlay.Path) || !System.IO.File.Exists(overlay.Path)) continue;
 
             using var image = SKBitmap.Decode(overlay.Path);
             if (image == null) continue;
