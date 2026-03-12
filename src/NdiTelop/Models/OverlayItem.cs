@@ -21,4 +21,7 @@ public partial class OverlayItem : ObservableObject
 
     [ObservableProperty]
     private double _opacity = 1.0;
+
+    [ObservableProperty]
+    private bool _isVisible = true;
 }

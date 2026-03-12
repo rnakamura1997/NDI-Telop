@@ -155,4 +155,47 @@ public class RenderServiceTests
             }
         }
     }
+
+
+    [Fact]
+    public void Render_WithInvisibleOverlay_ShouldNotDrawOverlay()
+    {
+        var service = new RenderService();
+        using var overlayBitmap = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var overlayCanvas = new SKCanvas(overlayBitmap))
+        {
+            overlayCanvas.Clear(SKColors.White);
+        }
+
+        var overlayPath = Path.Combine(Path.GetTempPath(), $"overlay-hidden-{Guid.NewGuid():N}.png");
+        try
+        {
+            using (var image = SKImage.FromBitmap(overlayBitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(overlayPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            var preset = new Preset
+            {
+                Background = new BackgroundStyle { Type = "transparent" },
+                TextLines = [],
+                Overlays = [new OverlayItem { Path = overlayPath, X = 1, Y = 1, Width = 2, Height = 2, Opacity = 1.0, IsVisible = false }]
+            };
+
+            using var bitmap = service.Render(preset, 8, 8);
+            var pixel = bitmap.GetPixel(2, 2);
+
+            Assert.Equal((byte)0, pixel.Alpha);
+        }
+        finally
+        {
+            if (File.Exists(overlayPath))
+            {
+                File.Delete(overlayPath);
+            }
+        }
+    }
+
 }
