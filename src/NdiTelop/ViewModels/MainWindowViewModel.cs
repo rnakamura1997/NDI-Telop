@@ -4,6 +4,7 @@ using NdiTelop.Models;
 using NdiTelop.Services;
 using NdiTelop.Interfaces;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -31,6 +32,7 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnSelectedPresetChanged(Preset? value)
     {
         AttachOverlayListeners(value);
+        AttachTextLineListeners(value);
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -100,6 +102,59 @@ public partial class MainWindowViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(SelectedPreset));
         }
+    }
+
+    private Preset? _textLineBoundPreset;
+
+    private void AttachTextLineListeners(Preset? preset)
+    {
+        if (_textLineBoundPreset != null)
+        {
+            _textLineBoundPreset.TextLines.CollectionChanged -= TextLines_CollectionChanged;
+            foreach (var line in _textLineBoundPreset.TextLines)
+            {
+                line.PropertyChanged -= TextLine_PropertyChanged;
+            }
+        }
+
+        _textLineBoundPreset = preset;
+
+        if (_textLineBoundPreset == null)
+        {
+            return;
+        }
+
+        _textLineBoundPreset.TextLines.CollectionChanged += TextLines_CollectionChanged;
+        foreach (var line in _textLineBoundPreset.TextLines)
+        {
+            line.PropertyChanged += TextLine_PropertyChanged;
+        }
+    }
+
+    private void TextLines_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (var removed in e.OldItems.OfType<TextLine>())
+            {
+                removed.PropertyChanged -= TextLine_PropertyChanged;
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (var added in e.NewItems.OfType<TextLine>())
+            {
+                added.PropertyChanged += TextLine_PropertyChanged;
+            }
+        }
+
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private void TextLine_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(SelectedPreset));
     }
 
     private DispatcherTimer? _autoClearTimer;
@@ -267,6 +322,35 @@ public partial class MainWindowViewModel : ObservableObject
         await _ndiService.SetActiveAsync(NdiChannelType.Preview, active);
         IsPreviewActive = _ndiService.IsPreviewActive;
         Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
+    }
+
+    [RelayCommand]
+    private void AddTextLine()
+    {
+        if (SelectedPreset == null)
+        {
+            return;
+        }
+
+        var defaultFontFamily = AvailableFontFamilies.FirstOrDefault() ?? "Meiryo";
+        SelectedPreset.TextLines.Add(new TextLine
+        {
+            Text = "New line",
+            FontFamily = defaultFontFamily,
+            FontSize = 48,
+            Color = "#FFFFFF"
+        });
+    }
+
+    [RelayCommand]
+    private void RemoveTextLine(TextLine? line)
+    {
+        if (SelectedPreset == null || line == null)
+        {
+            return;
+        }
+
+        SelectedPreset.TextLines.Remove(line);
     }
 
     public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }

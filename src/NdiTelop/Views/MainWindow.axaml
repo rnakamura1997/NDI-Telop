@@ -36,7 +36,7 @@
 
     <!-- Center Column: Preview Area -->
     <Border Grid.Column="1" Margin="10" BorderBrush="#333" BorderThickness="1" Background="Black">
-      <ctrl:PreviewCanvas DataContext="{Binding SelectedPreset}" NdiConfig="{Binding NdiConfig}" />
+      <ctrl:PreviewCanvas Preset="{Binding SelectedPreset}" NdiConfig="{Binding NdiConfig}" />
     </Border>
 
     <!-- Right Column: Preset Editor and NDI Controls -->
@@ -44,14 +44,41 @@
       <TextBlock Text="Preset Editor" FontWeight="Bold" Margin="0,0,0,5" />
       <TextBlock Text="Name:" />
       <TextBox Text="{Binding SelectedPreset.Name}" />
-      <TextBlock Text="Text Line 1:" />
-      <TextBox Text="{Binding SelectedPreset.TextLines[0].Text}" />
-      <TextBlock Text="Font Family:" />
-      <ComboBox ItemsSource="{Binding AvailableFontFamilies}" SelectedItem="{Binding SelectedPreset.TextLines[0].FontFamily}" HorizontalAlignment="Stretch" />
-      <TextBlock Text="Font Size:" />
-      <TextBox Text="{Binding SelectedPreset.TextLines[0].FontSize}" />
-      <TextBlock Text="Color:" />
-      <ac:ColorPicker Color="{Binding SelectedPreset.TextLines[0].Color, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+        <TextBlock Text="Text Lines" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Content="Add Line" Command="{Binding AddTextLineCommand}" />
+      </StackPanel>
+      <ListBox ItemsSource="{Binding SelectedPreset.TextLines}" MaxHeight="250">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Border BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,6">
+              <StackPanel Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Line Text" Width="70" VerticalAlignment="Center" />
+                  <TextBox Text="{Binding Text, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Font" Width="70" VerticalAlignment="Center" />
+                  <ComboBox ItemsSource="{Binding DataContext.AvailableFontFamilies, RelativeSource={RelativeSource AncestorType=Window}}"
+                            SelectedItem="{Binding FontFamily, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Size" Width="70" VerticalAlignment="Center" />
+                  <TextBox Text="{Binding FontSize, Mode=TwoWay}" Width="80" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Color" Width="70" VerticalAlignment="Center" />
+                  <ac:ColorPicker Color="{Binding Color, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <Button Content="Remove" HorizontalAlignment="Right"
+                        Command="{Binding DataContext.RemoveTextLineCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding}" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
       <TextBlock Text="Auto Clear (seconds):" />
       <TextBox Text="{Binding SelectedPreset.AutoClearSeconds}" />
 

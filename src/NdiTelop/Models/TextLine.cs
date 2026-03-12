@@ -1,9 +1,18 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace NdiTelop.Models;
 
-public class TextLine
+public partial class TextLine : ObservableObject
 {
-    public string Text { get; set; } = string.Empty;
-    public string FontFamily { get; set; } = "Meiryo";
-    public int FontSize { get; set; } = 48;
-    public string Color { get; set; } = "#FFFFFF";
+    [ObservableProperty]
+    private string _text = string.Empty;
+
+    [ObservableProperty]
+    private string _fontFamily = "Meiryo";
+
+    [ObservableProperty]
+    private int _fontSize = 48;
+
+    [ObservableProperty]
+    private string _color = "#FFFFFF";
 }
