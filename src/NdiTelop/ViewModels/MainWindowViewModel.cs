@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly INdiService _ndiService;
     private readonly ISettingsService _settingsService;
     private readonly ExternalControlCoordinator? _externalControlCoordinator;
+    private readonly AssetService _assetService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -170,13 +171,14 @@ public partial class MainWindowViewModel : ObservableObject
 
 
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalControlCoordinator? externalControlCoordinator = null)
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalControlCoordinator? externalControlCoordinator = null, AssetService? assetService = null)
     {
         _renderService = renderService;
         _presetService = presetService;
         _ndiService = ndiService;
         _settingsService = settingsService;
         _externalControlCoordinator = externalControlCoordinator;
+        _assetService = assetService ?? new AssetService();
 
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
@@ -351,6 +353,39 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         SelectedPreset.TextLines.Remove(line);
+    }
+
+    public Task ImportOverlayImageAsync(string sourcePath)
+    {
+        if (SelectedPreset == null)
+        {
+            Status = "No preset selected.";
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            var relativePath = _assetService.ImportImage(sourcePath);
+            SelectedPreset.Overlays.Add(new OverlayItem
+            {
+                Path = relativePath,
+                X = 0,
+                Y = 0,
+                Width = 0,
+                Height = 0,
+                Opacity = 1.0,
+                IsVisible = true
+            });
+
+            Status = $"Image imported: {relativePath}";
+            OnPropertyChanged(nameof(SelectedPreset));
+        }
+        catch (Exception ex)
+        {
+            Status = $"Image import failed: {ex.Message}";
+        }
+
+        return Task.CompletedTask;
     }
 
     public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }
