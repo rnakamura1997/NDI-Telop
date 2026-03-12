@@ -3,7 +3,7 @@ using NdiTelop.Models;
 using SkiaSharp;
 using System.Runtime.InteropServices;
 using NewTek.NDI;
-using NewTek.NDIlib;
+using static NewTek.NDIlib;
 
 namespace NdiTelop.Services;
 
@@ -24,7 +24,7 @@ public class NdiService : INdiService
     {
         if (IsInitialized) return;
 
-        if (!NDIlib.IsSupported)
+        if (!IsRuntimeSupported())
         {
             throw new InvalidOperationException("NDI runtime is not supported or not installed.");
         }
@@ -53,11 +53,11 @@ public class NdiService : INdiService
             _ndiConfig.ResolutionWidth, // int width
             _ndiConfig.ResolutionHeight, // int height
             frame.RowBytes, // int stride
-            NDIlib.FourCC_type_e.FourCC_type_BGRA, // NDIlib.FourCC_type_e fourCC
+            FourCC_type_e.FourCC_type_BGRA, // NDIlib.FourCC_type_e fourCC
             (float)_ndiConfig.ResolutionWidth / _ndiConfig.ResolutionHeight, // float aspectRatio
             _ndiConfig.FrameRateN, // int frameRateNumerator
             _ndiConfig.FrameRateD, // int frameRateDenominator
-            NDIlib.frame_format_type_e.frame_format_type_progressive // NDIlib.frame_format_type_e format
+            frame_format_type_e.frame_format_type_progressive // NDIlib.frame_format_type_e format
         );
 
         // NDIフレームを送出
@@ -79,6 +79,17 @@ public class NdiService : INdiService
             IsPreviewActive = active;
         }
         await Task.CompletedTask;
+    }
+
+    private static bool IsRuntimeSupported()
+    {
+        var isSupportedProperty = typeof(NewTek.NDIlib).GetProperty("IsSupported", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        if (isSupportedProperty?.GetValue(null) is bool isSupported)
+        {
+            return isSupported;
+        }
+
+        return true;
     }
 
     public void Dispose()
