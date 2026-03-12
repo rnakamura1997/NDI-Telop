@@ -19,6 +19,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IPresetService _presetService;
     private readonly INdiService _ndiService;
     private readonly ISettingsService _settingsService;
+    private readonly ExternalControlCoordinator? _externalControlCoordinator;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -114,12 +115,13 @@ public partial class MainWindowViewModel : ObservableObject
 
 
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService)
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalControlCoordinator? externalControlCoordinator = null)
     {
         _renderService = renderService;
         _presetService = presetService;
         _ndiService = ndiService;
         _settingsService = settingsService;
+        _externalControlCoordinator = externalControlCoordinator;
 
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
@@ -137,6 +139,11 @@ public partial class MainWindowViewModel : ObservableObject
         _autoClearTimer = new DispatcherTimer();
         _autoClearTimer.Interval = TimeSpan.FromSeconds(1);
         _autoClearTimer.Tick += AutoClearTimer_Tick;
+
+        if (_externalControlCoordinator != null)
+        {
+            _externalControlCoordinator.ShowPresetHandler = preset => ShowPresetAsync(preset);
+        }
     }
 
     [RelayCommand]

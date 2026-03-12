@@ -58,4 +58,13 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(9090, imported.Settings.HttpPort);
         Assert.True(File.Exists(_settingsPath));
     }
+    [Fact]
+    public void Constructor_ShouldUseDefaultExternalControlPorts()
+    {
+        var service = new SettingsService(_settingsPath);
+
+        Assert.Equal(5000, service.Settings.WebApiPort);
+        Assert.Equal(8000, service.Settings.OscPort);
+    }
+
 }
