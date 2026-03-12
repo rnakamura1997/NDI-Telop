@@ -198,4 +198,117 @@ public class RenderServiceTests
         }
     }
 
+    [Fact]
+    public void Render_WithSemiTransparentOverlayAndOpacity_ShouldMultiplyAlpha()
+    {
+        var service = new RenderService();
+        using var overlayBitmap = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var overlayCanvas = new SKCanvas(overlayBitmap))
+        {
+            overlayCanvas.Clear(new SKColor(255, 0, 0, 128));
+        }
+
+        var overlayPath = Path.Combine(Path.GetTempPath(), $"overlay-alpha-{Guid.NewGuid():N}.png");
+        try
+        {
+            using (var image = SKImage.FromBitmap(overlayBitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(overlayPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            var preset = new Preset
+            {
+                Background = new BackgroundStyle { Type = "transparent" },
+                TextLines = [],
+                Overlays = [new OverlayItem { Path = overlayPath, X = 1, Y = 1, Width = 2, Height = 2, Opacity = 0.5 }]
+            };
+
+            using var bitmap = service.Render(preset, 8, 8);
+            var pixel = bitmap.GetPixel(2, 2);
+
+            Assert.InRange(pixel.Alpha, (byte)63, (byte)65);
+            Assert.Equal((byte)255, pixel.Red);
+            Assert.Equal((byte)0, pixel.Green);
+            Assert.Equal((byte)0, pixel.Blue);
+        }
+        finally
+        {
+            if (File.Exists(overlayPath))
+            {
+                File.Delete(overlayPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_WithTransparentOverlaysStacked_ShouldKeepExpectedColorBalance()
+    {
+        var service = new RenderService();
+
+        using var redOverlayBitmap = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var redCanvas = new SKCanvas(redOverlayBitmap))
+        {
+            redCanvas.Clear(new SKColor(255, 0, 0, 128));
+        }
+
+        using var greenOverlayBitmap = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var greenCanvas = new SKCanvas(greenOverlayBitmap))
+        {
+            greenCanvas.Clear(new SKColor(0, 255, 0, 128));
+        }
+
+        var redPath = Path.Combine(Path.GetTempPath(), $"overlay-red-{Guid.NewGuid():N}.png");
+        var greenPath = Path.Combine(Path.GetTempPath(), $"overlay-green-{Guid.NewGuid():N}.png");
+
+        try
+        {
+            using (var redImage = SKImage.FromBitmap(redOverlayBitmap))
+            using (var redData = redImage.Encode(SKEncodedImageFormat.Png, 100))
+            using (var redStream = File.OpenWrite(redPath))
+            {
+                redData.SaveTo(redStream);
+            }
+
+            using (var greenImage = SKImage.FromBitmap(greenOverlayBitmap))
+            using (var greenData = greenImage.Encode(SKEncodedImageFormat.Png, 100))
+            using (var greenStream = File.OpenWrite(greenPath))
+            {
+                greenData.SaveTo(greenStream);
+            }
+
+            var preset = new Preset
+            {
+                Background = new BackgroundStyle { Type = "transparent" },
+                TextLines = [],
+                Overlays =
+                [
+                    new OverlayItem { Path = redPath, X = 1, Y = 1, Width = 2, Height = 2, Opacity = 0.5 },
+                    new OverlayItem { Path = greenPath, X = 1, Y = 1, Width = 2, Height = 2, Opacity = 0.5 }
+                ]
+            };
+
+            using var bitmap = service.Render(preset, 8, 8);
+            var pixel = bitmap.GetPixel(2, 2);
+
+            Assert.InRange(pixel.Alpha, (byte)111, (byte)113);
+            Assert.InRange(pixel.Red, (byte)108, (byte)110);
+            Assert.InRange(pixel.Green, (byte)145, (byte)147);
+            Assert.Equal((byte)0, pixel.Blue);
+        }
+        finally
+        {
+            if (File.Exists(redPath))
+            {
+                File.Delete(redPath);
+            }
+
+            if (File.Exists(greenPath))
+            {
+                File.Delete(greenPath);
+            }
+        }
+    }
+
 }

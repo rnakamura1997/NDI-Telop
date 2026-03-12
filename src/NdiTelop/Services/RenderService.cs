@@ -71,9 +71,13 @@ public class RenderService : IRenderService
             using var image = SKBitmap.Decode(overlay.Path);
             if (image == null) continue;
 
+            var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
+            if (opacity <= 0) continue;
+
             using var paint = new SKPaint
             {
-                Color = SKColors.White.WithAlpha((byte)(Math.Clamp(overlay.Opacity, 0.0, 1.0) * 255)),
+                Color = SKColors.White.WithAlpha((byte)(opacity * 255)),
+                BlendMode = SKBlendMode.SrcOver,
                 IsAntialias = true
             };
 
