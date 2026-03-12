@@ -83,6 +83,7 @@
       <TextBox Text="{Binding SelectedPreset.AutoClearSeconds}" />
 
       <TextBlock Text="Overlay Manager" FontWeight="Bold" Margin="0,10,0,5" />
+      <Button Content="画像をインポート" Click="ImportImageButton_OnClick" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
       <ListBox ItemsSource="{Binding SelectedPreset.Overlays}" MaxHeight="220">
         <ListBox.ItemTemplate>
           <DataTemplate>

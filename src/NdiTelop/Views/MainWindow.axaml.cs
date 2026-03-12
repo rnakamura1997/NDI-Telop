@@ -1,5 +1,7 @@
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using NdiTelop.ViewModels;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace NdiTelop.Views;
@@ -17,6 +19,35 @@ public partial class MainWindow : Window
                 viewModel.LoadPresetsAsync().FireAndForget();
             }
         };
+    }
+
+    private async void ImportImageButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "画像をインポート",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Image Files")
+                {
+                    Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp" }
+                }
+            }
+        });
+
+        var selectedFile = files.FirstOrDefault();
+        if (selectedFile == null)
+        {
+            return;
+        }
+
+        await viewModel.ImportOverlayImageAsync(selectedFile.Path.LocalPath);
     }
 }
 

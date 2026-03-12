@@ -1,11 +1,14 @@
 using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using SkiaSharp;
+using System.IO;
 
 namespace NdiTelop.Services;
 
 public class RenderService : IRenderService
 {
+    private readonly AssetService _assetService = new();
+
     public SKBitmap Render(Preset preset, int width, int height)
     {
         var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
@@ -62,13 +65,16 @@ public class RenderService : IRenderService
         canvas.DrawRect(0, 0, width, height, paint);
     }
 
-    private static void DrawOverlays(SKCanvas canvas, IReadOnlyList<OverlayItem> overlays, int width, int height)
+    private void DrawOverlays(SKCanvas canvas, IReadOnlyList<OverlayItem> overlays, int width, int height)
     {
         foreach (var overlay in overlays)
         {
-            if (!overlay.IsVisible || string.IsNullOrEmpty(overlay.Path) || !System.IO.File.Exists(overlay.Path)) continue;
+            if (!overlay.IsVisible || string.IsNullOrEmpty(overlay.Path)) continue;
 
-            using var image = SKBitmap.Decode(overlay.Path);
+            var resolvedPath = _assetService.ResolvePath(overlay.Path);
+            if (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath)) continue;
+
+            using var image = SKBitmap.Decode(resolvedPath);
             if (image == null) continue;
 
             var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
