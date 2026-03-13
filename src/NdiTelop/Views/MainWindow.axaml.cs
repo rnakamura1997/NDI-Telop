@@ -134,6 +134,36 @@ public partial class MainWindow : Window
         return null;
     }
 
+    private async void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var number = e.Key switch
+        {
+            Key.NumPad1 => 1,
+            Key.NumPad2 => 2,
+            Key.NumPad3 => 3,
+            Key.NumPad4 => 4,
+            Key.NumPad5 => 5,
+            Key.NumPad6 => 6,
+            Key.NumPad7 => 7,
+            Key.NumPad8 => 8,
+            Key.NumPad9 => 9,
+            _ => 0
+        };
+
+        if (number == 0)
+        {
+            return;
+        }
+
+        await viewModel.TriggerPresetByNumberAsync(number);
+        e.Handled = true;
+    }
+
 
     private async void ImportPresetsButton_OnClick(object? sender, RoutedEventArgs e)
     {
