@@ -1,5 +1,4 @@
-using System;
-using System.IO;
+using Serilog;
 
 namespace NdiTelop.Services;
 
@@ -19,15 +18,24 @@ public class AssetService
             throw new ArgumentException("Source path is required.", nameof(sourcePath));
         }
 
-        Directory.CreateDirectory(_assetDirectory);
+        try
+        {
+            Directory.CreateDirectory(_assetDirectory);
 
-        var extension = Path.GetExtension(sourcePath);
-        var safeName = Path.GetFileNameWithoutExtension(sourcePath);
-        var uniqueName = $"{safeName}_{DateTime.UtcNow:yyyyMMddHHmmssfff}{extension}";
-        var destinationPath = Path.Combine(_assetDirectory, uniqueName);
+            var extension = Path.GetExtension(sourcePath);
+            var safeName = Path.GetFileNameWithoutExtension(sourcePath);
+            var uniqueName = $"{safeName}_{DateTime.UtcNow:yyyyMMddHHmmssfff}{extension}";
+            var destinationPath = Path.Combine(_assetDirectory, uniqueName);
 
-        File.Copy(sourcePath, destinationPath, overwrite: false);
-        return uniqueName;
+            File.Copy(sourcePath, destinationPath, overwrite: false);
+            Log.Information("Asset imported. Source={SourcePath}, Destination={DestinationPath}", sourcePath, destinationPath);
+            return uniqueName;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Asset import failed. Source={SourcePath}", sourcePath);
+            throw;
+        }
     }
 
     public string ResolvePath(string path)
@@ -37,11 +45,6 @@ public class AssetService
             return string.Empty;
         }
 
-        if (Path.IsPathRooted(path))
-        {
-            return path;
-        }
-
-        return Path.Combine(_assetDirectory, path);
+        return Path.IsPathRooted(path) ? path : Path.Combine(_assetDirectory, path);
     }
 }

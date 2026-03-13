@@ -2,11 +2,11 @@ using Avalonia;
 using Avalonia.ReactiveUI;
 using Microsoft.Extensions.DependencyInjection;
 using NdiTelop.Interfaces;
+using NdiTelop.Logging;
 using NdiTelop.Services;
 using NdiTelop.ViewModels;
 using NdiTelop.Views;
-using System;
-using System.IO;
+using Serilog;
 
 namespace NdiTelop;
 
@@ -17,8 +17,24 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        Services = ConfigureServices();
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        AppLogger.Configure();
+
+        try
+        {
+            Log.Information("Application startup.");
+            Services = ConfigureServices();
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Application terminated unexpectedly during startup.");
+            throw;
+        }
+        finally
+        {
+            Log.Information("Application shutdown.");
+            Log.CloseAndFlush();
+        }
     }
 
     public static AppBuilder BuildAvaloniaApp()
@@ -63,12 +79,26 @@ public static class Program
         var presetService = services.GetRequiredService<IPresetService>();
         presetService.LoadPresetsAsync().GetAwaiter().GetResult();
 
-        var oscService = services.GetRequiredService<IOscService>();
-        oscService.ReceivePort = settingsService.Settings.OscPort;
-        oscService.StartAsync().GetAwaiter().GetResult();
+        try
+        {
+            var oscService = services.GetRequiredService<IOscService>();
+            oscService.ReceivePort = settingsService.Settings.OscPort;
+            oscService.StartAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "OSC initialization failed (port: {Port}).", settingsService.Settings.OscPort);
+        }
 
-        var webApiService = services.GetRequiredService<IWebApiService>();
-        webApiService.Port = settingsService.Settings.WebApiPort;
-        webApiService.StartAsync().GetAwaiter().GetResult();
+        try
+        {
+            var webApiService = services.GetRequiredService<IWebApiService>();
+            webApiService.Port = settingsService.Settings.WebApiPort;
+            webApiService.StartAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Web API initialization failed (port: {Port}).", settingsService.Settings.WebApiPort);
+        }
     }
 }

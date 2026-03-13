@@ -2,6 +2,7 @@ using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using SkiaSharp;
 using System.IO;
+using Serilog;
 
 namespace NdiTelop.Services;
 
@@ -115,25 +116,45 @@ public class RenderService : IRenderService
             if (!overlay.IsVisible || string.IsNullOrEmpty(overlay.Path)) continue;
 
             var resolvedPath = _assetService.ResolvePath(overlay.Path);
-            if (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath)) continue;
+            if (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath))
+            {
+                Log.Warning("Overlay asset not found and skipped. Path={Path}", overlay.Path);
+                continue;
+            }
 
-            using var image = SKBitmap.Decode(resolvedPath);
-            if (image == null) continue;
+            SKBitmap? image = null;
+            try
+            {
+                image = SKBitmap.Decode(resolvedPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Overlay asset decode failed. Path={Path}", resolvedPath);
+            }
+
+            using (image)
+            {
+                if (image == null)
+                {
+                    Log.Warning("Overlay decode returned null. Path={Path}", resolvedPath);
+                    continue;
+                }
 
             var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
-            if (opacity <= 0) continue;
+                if (opacity <= 0) continue;
 
-            using var paint = new SKPaint
-            {
-                Color = SKColors.White.WithAlpha((byte)(opacity * 255)),
-                BlendMode = SKBlendMode.SrcOver,
-                IsAntialias = true
-            };
+                using var paint = new SKPaint
+                {
+                    Color = SKColors.White.WithAlpha((byte)(opacity * 255)),
+                    BlendMode = SKBlendMode.SrcOver,
+                    IsAntialias = true
+                };
 
-            var drawWidth = overlay.Width > 0 ? overlay.Width : image.Width;
-            var drawHeight = overlay.Height > 0 ? overlay.Height : image.Height;
-            var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
-            canvas.DrawBitmap(image, destRect, paint);
+                var drawWidth = overlay.Width > 0 ? overlay.Width : image.Width;
+                var drawHeight = overlay.Height > 0 ? overlay.Height : image.Height;
+                var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
+                canvas.DrawBitmap(image, destRect, paint);
+            }
         }
     }
 

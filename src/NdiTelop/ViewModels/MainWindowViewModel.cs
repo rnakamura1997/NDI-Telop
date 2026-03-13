@@ -11,6 +11,8 @@ using Avalonia.Threading;
 using NdiTelop.Utils;
 using SkiaSharp;
 using System.ComponentModel;
+using NdiTelop.Logging;
+using Serilog;
 
 namespace NdiTelop.ViewModels;
 
@@ -65,6 +67,7 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isPreviewActive;
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
+    public ObservableCollection<string> RecentLogs => AppLogger.InMemorySink.RecentLogs;
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
         "fade",
@@ -218,6 +221,7 @@ public partial class MainWindowViewModel : ObservableObject
         await _presetService.LoadPresetsAsync();
         SelectedPreset = Presets.FirstOrDefault();
         Status = $"Loaded {Presets.Count} presets.";
+        Log.Information("Loaded presets count: {Count}", Presets.Count);
     }
 
     [RelayCommand]
@@ -237,6 +241,7 @@ public partial class MainWindowViewModel : ObservableObject
         catch (Exception ex)
         {
             Status = $"Error rendering preview: {ex.Message}";
+            Log.Error(ex, "Preview rendering failed.");
         }
     }
 
@@ -247,6 +252,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             await _presetService.SavePresetAsync(SelectedPreset);
             Status = $"Preset saved: {SelectedPreset.Name}";
+            Log.Information("Preset saved. Name={PresetName}, Id={PresetId}", SelectedPreset.Name, SelectedPreset.Id);
         }
         else
         {
@@ -263,6 +269,7 @@ public partial class MainWindowViewModel : ObservableObject
             SelectedPreset = null; // Clear selection before deleting
             await _presetService.DeletePresetAsync(presetToDelete.Id);
             Status = $"Preset deleted: {presetToDelete.Name}";
+            Log.Information("Preset deleted. Name={PresetName}, Id={PresetId}", presetToDelete.Name, presetToDelete.Id);
         }
         else
         {
@@ -278,10 +285,12 @@ public partial class MainWindowViewModel : ObservableObject
             await _settingsService.LoadAsync();
             NdiConfig = CloneNdiConfig(_settingsService.Settings.Ndi);
             Status = "App settings loaded.";
+            Log.Information("Application settings loaded.");
         }
         catch (Exception ex)
         {
             Status = $"Error loading app settings: {ex.Message}";
+            Log.Error(ex, "Failed to load application settings.");
         }
     }
 
@@ -293,10 +302,12 @@ public partial class MainWindowViewModel : ObservableObject
             _settingsService.Settings.Ndi = CloneNdiConfig(NdiConfig);
             await _settingsService.SaveAsync();
             Status = "App settings saved.";
+            Log.Information("Application settings saved.");
         }
         catch (Exception ex)
         {
             Status = $"Error saving app settings: {ex.Message}";
+            Log.Error(ex, "Failed to save application settings.");
         }
     }
 
@@ -310,11 +321,13 @@ public partial class MainWindowViewModel : ObservableObject
             await _ndiService.InitializeAsync(NdiConfig);
             IsNdiInitialized = _ndiService.IsInitialized;
             Status = "NDI Initialized.";
+            Log.Information("NDI initialized from UI command.");
             _ndiSendTimer.Start();
         }
         catch (Exception ex)
         {
             Status = $"Error initializing NDI: {ex.Message}";
+            Log.Error(ex, "Failed to initialize NDI from UI command.");
         }
     }
 
@@ -386,11 +399,13 @@ public partial class MainWindowViewModel : ObservableObject
             });
 
             Status = $"Image imported: {relativePath}";
+            Log.Information("Overlay image imported and attached: {RelativePath}", relativePath);
             OnPropertyChanged(nameof(SelectedPreset));
         }
         catch (Exception ex)
         {
             Status = $"Image import failed: {ex.Message}";
+            Log.Error(ex, "Overlay image import failed.");
         }
 
         return Task.CompletedTask;
@@ -478,6 +493,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         CurrentProgramPreset = null;
         Status = "Program cleared.";
+        Log.Information("Program output cleared.");
     }
     private static NdiConfig CloneNdiConfig(NdiConfig source)
     {
@@ -514,6 +530,7 @@ public partial class MainWindowViewModel : ObservableObject
         catch (Exception ex)
         {
             Status = $"Error sending NDI frame: {ex.Message}";
+            Log.Error(ex, "Failed sending NDI frame.");
             _ndiSendTimer.Stop();
         }
     }

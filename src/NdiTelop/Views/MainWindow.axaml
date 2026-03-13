@@ -124,9 +124,18 @@
       <TextBlock Text="Frame Rate: {Binding NdiConfig.FrameRateN}/{Binding NdiConfig.FrameRateD}" />
     </StackPanel>
 
-    <!-- Status Bar -->
-    <Border Grid.Row="1" Grid.ColumnSpan="3" Background="#222" Padding="5">
-      <TextBlock Text="{Binding Status}" Foreground="White" />
+    <!-- Status Bar / Log Viewer -->
+    <Border Grid.Row="1" Grid.ColumnSpan="3" Background="#222" Padding="6">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding Status}" Foreground="White" FontWeight="SemiBold" />
+        <ItemsControl ItemsSource="{Binding RecentLogs}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}" Foreground="#CFCFCF" FontSize="11" TextTrimming="CharacterEllipsis" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
     </Border>
   </Grid>
 </Window>
