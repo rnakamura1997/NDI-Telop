@@ -69,4 +69,41 @@ public class MainWindowViewModelSettingsTests
         Assert.Equal(1920, settings.Ndi.ResolutionWidth);
         Assert.Equal("App settings saved.", vm.Status);
     }
+
+    [Fact]
+    public async Task SetProgramActiveAsync_WhenNdiIsActive_ShouldReflectActiveStatusIndicator()
+    {
+        var settingsService = Substitute.For<ISettingsService>();
+        var ndiService = Substitute.For<INdiService>();
+        ndiService.IsInitialized.Returns(true);
+        ndiService.IsProgramActive.Returns(true);
+
+        var renderService = new RenderService();
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+        var vm = new MainWindowViewModel(renderService, presetService, ndiService, settingsService);
+
+        await vm.SetProgramActiveCommand.ExecuteAsync(true);
+
+        Assert.Equal("Active", vm.NdiOutputStatus);
+        Assert.Equal("#3CB371", vm.NdiOutputStatusColor);
+    }
+
+    [Fact]
+    public async Task SetPreviewActiveAsync_WhenServiceThrows_ShouldReflectErrorStatusIndicator()
+    {
+        var settingsService = Substitute.For<ISettingsService>();
+        var ndiService = Substitute.For<INdiService>();
+        ndiService.SetActiveAsync(NdiChannelType.Preview, true).Returns(_ => throw new InvalidOperationException("boom"));
+
+        var renderService = new RenderService();
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+        var vm = new MainWindowViewModel(renderService, presetService, ndiService, settingsService);
+
+        await vm.SetPreviewActiveCommand.ExecuteAsync(true);
+
+        Assert.Equal("Error", vm.NdiOutputStatus);
+        Assert.Equal("#E74C3C", vm.NdiOutputStatusColor);
+    }
 }
