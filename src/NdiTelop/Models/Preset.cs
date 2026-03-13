@@ -5,6 +5,7 @@ namespace NdiTelop.Models;
 public class Preset
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public int SortOrder { get; set; }
     public string Name { get; set; } = string.Empty;
     public ObservableCollection<TextLine> TextLines { get; set; } = [];
     public BackgroundStyle Background { get; set; } = new();

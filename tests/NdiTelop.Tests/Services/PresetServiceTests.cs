@@ -116,6 +116,25 @@ public class PresetServiceTests : IDisposable
         Assert.DoesNotContain(presetToDelete.Name, savedContent);
     }
 
+
+    [Fact]
+    public async Task MovePresetAsync_ShouldReorderAndPersist()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var firstPresetId = service.Presets[0].Id;
+        await service.MovePresetAsync(firstPresetId, 1);
+
+        Assert.Equal(firstPresetId, service.Presets[1].Id);
+        Assert.True(File.Exists(_testUserPresetPath));
+
+        var reloaded = CreateService();
+        await reloaded.LoadPresetsAsync();
+
+        Assert.Equal(firstPresetId, reloaded.Presets[1].Id);
+    }
+
     [Fact]
     public async Task ExportPresetAsync_ShouldCreateSchemaBasedJsonFile()
     {

@@ -303,6 +303,13 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    public async Task MovePresetAsync(string presetId, int targetIndex)
+    {
+        await _presetService.MovePresetAsync(presetId, targetIndex);
+        OnPropertyChanged(nameof(Presets));
+        Status = "Preset order updated.";
+    }
+
     [RelayCommand]
     public async Task DeleteSelectedPresetAsync()
     {
