@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NdiTelop.Interfaces;
 using NdiTelop.Models;
+using NdiTelop.Services;
 using Serilog;
 
 namespace NdiTelop.ViewModels;
@@ -9,6 +10,7 @@ namespace NdiTelop.ViewModels;
 public partial class SettingsWindowViewModel : ObservableObject
 {
     private readonly ISettingsService _settingsService;
+    private readonly HotkeyService? _hotkeyService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -25,9 +27,28 @@ public partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _assetPath = string.Empty;
 
-    public SettingsWindowViewModel(ISettingsService settingsService)
+    [ObservableProperty]
+    private string _preset1Hotkey = string.Empty;
+
+    [ObservableProperty]
+    private string _preset2Hotkey = string.Empty;
+
+    [ObservableProperty]
+    private string _preset3Hotkey = string.Empty;
+
+    [ObservableProperty]
+    private string _preset4Hotkey = string.Empty;
+
+    [ObservableProperty]
+    private string _preset5Hotkey = string.Empty;
+
+    [ObservableProperty]
+    private string _clearProgramHotkey = string.Empty;
+
+    public SettingsWindowViewModel(ISettingsService settingsService, HotkeyService? hotkeyService = null)
     {
         _settingsService = settingsService;
+        _hotkeyService = hotkeyService;
     }
 
     [RelayCommand]
@@ -40,6 +61,12 @@ public partial class SettingsWindowViewModel : ObservableObject
             WebApiPort = _settingsService.Settings.WebApiPort;
             OscPort = _settingsService.Settings.OscPort;
             AssetPath = _settingsService.Settings.AssetPath;
+            Preset1Hotkey = _settingsService.Settings.Hotkeys.Preset1;
+            Preset2Hotkey = _settingsService.Settings.Hotkeys.Preset2;
+            Preset3Hotkey = _settingsService.Settings.Hotkeys.Preset3;
+            Preset4Hotkey = _settingsService.Settings.Hotkeys.Preset4;
+            Preset5Hotkey = _settingsService.Settings.Hotkeys.Preset5;
+            ClearProgramHotkey = _settingsService.Settings.Hotkeys.ClearProgram;
             Status = "Settings loaded.";
         }
         catch (Exception ex)
@@ -58,7 +85,14 @@ public partial class SettingsWindowViewModel : ObservableObject
             _settingsService.Settings.WebApiPort = WebApiPort;
             _settingsService.Settings.OscPort = OscPort;
             _settingsService.Settings.AssetPath = AssetPath;
+            _settingsService.Settings.Hotkeys.Preset1 = Preset1Hotkey;
+            _settingsService.Settings.Hotkeys.Preset2 = Preset2Hotkey;
+            _settingsService.Settings.Hotkeys.Preset3 = Preset3Hotkey;
+            _settingsService.Settings.Hotkeys.Preset4 = Preset4Hotkey;
+            _settingsService.Settings.Hotkeys.Preset5 = Preset5Hotkey;
+            _settingsService.Settings.Hotkeys.ClearProgram = ClearProgramHotkey;
             await _settingsService.SaveAsync();
+            _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
             Status = "Settings saved.";
         }
         catch (Exception ex)

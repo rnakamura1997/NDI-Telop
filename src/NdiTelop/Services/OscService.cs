@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Sockets;
 using NdiTelop.Interfaces;
 using Serilog;
@@ -28,7 +29,8 @@ public class OscService : IOscService
         try
         {
             _cts = new CancellationTokenSource();
-            _udpClient = new UdpClient(ReceivePort);
+            _udpClient = new UdpClient(AddressFamily.InterNetwork);
+            _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, ReceivePort));
             _listenerTask = ListenLoopAsync(_cts.Token);
             Log.Information("OSC listener started on UDP port {Port}.", ReceivePort);
             return Task.CompletedTask;

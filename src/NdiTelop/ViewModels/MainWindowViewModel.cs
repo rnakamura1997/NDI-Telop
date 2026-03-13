@@ -24,6 +24,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly ISettingsService _settingsService;
     private readonly ExternalControlCoordinator? _externalControlCoordinator;
     private readonly AssetService _assetService;
+    private readonly HotkeyService? _hotkeyService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -182,7 +183,7 @@ public partial class MainWindowViewModel : ObservableObject
 
 
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalControlCoordinator? externalControlCoordinator = null, AssetService? assetService = null)
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalControlCoordinator? externalControlCoordinator = null, AssetService? assetService = null, HotkeyService? hotkeyService = null)
     {
         _renderService = renderService;
         _presetService = presetService;
@@ -190,6 +191,7 @@ public partial class MainWindowViewModel : ObservableObject
         _settingsService = settingsService;
         _externalControlCoordinator = externalControlCoordinator;
         _assetService = assetService ?? new AssetService();
+        _hotkeyService = hotkeyService;
 
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
@@ -212,6 +214,11 @@ public partial class MainWindowViewModel : ObservableObject
         {
             _externalControlCoordinator.ShowPresetHandler = preset => ShowPresetAsync(preset);
         }
+
+        if (_hotkeyService != null)
+        {
+            _hotkeyService.HotkeyPressed += HandleHotkeyPressed;
+        }
     }
 
     [RelayCommand]
@@ -219,9 +226,35 @@ public partial class MainWindowViewModel : ObservableObject
     {
         await LoadAppSettingsAsync();
         await _presetService.LoadPresetsAsync();
+        _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
         SelectedPreset = Presets.FirstOrDefault();
         Status = $"Loaded {Presets.Count} presets.";
         Log.Information("Loaded presets count: {Count}", Presets.Count);
+    }
+
+    private async void HandleHotkeyPressed(HotkeyAction action)
+    {
+        var preset = action switch
+        {
+            HotkeyAction.Preset1 => Presets.ElementAtOrDefault(0),
+            HotkeyAction.Preset2 => Presets.ElementAtOrDefault(1),
+            HotkeyAction.Preset3 => Presets.ElementAtOrDefault(2),
+            HotkeyAction.Preset4 => Presets.ElementAtOrDefault(3),
+            HotkeyAction.Preset5 => Presets.ElementAtOrDefault(4),
+            _ => null
+        };
+
+        if (action == HotkeyAction.ClearProgram)
+        {
+            await ClearProgram();
+            return;
+        }
+
+        if (preset != null)
+        {
+            await ShowPresetAsync(preset);
+            Status = $"Hotkey: {preset.Name}";
+        }
     }
 
     [RelayCommand]
