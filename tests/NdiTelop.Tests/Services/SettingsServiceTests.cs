@@ -84,4 +84,20 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal("Ctrl+Shift+Backspace", loaded.Settings.Hotkeys.ClearProgram);
     }
 
+    [Fact]
+    public async Task SaveAsync_ShouldPersistThemeSettings()
+    {
+        var service = new SettingsService(_settingsPath);
+        service.Settings.Theme.Mode = "Dark";
+        service.Settings.Theme.AccentColor = "#FFFF4081";
+
+        await service.SaveAsync();
+
+        var loaded = new SettingsService(_settingsPath);
+        await loaded.LoadAsync();
+
+        Assert.Equal("Dark", loaded.Settings.Theme.Mode);
+        Assert.Equal("#FFFF4081", loaded.Settings.Theme.AccentColor);
+    }
+
 }

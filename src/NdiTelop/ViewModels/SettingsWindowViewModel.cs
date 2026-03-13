@@ -12,6 +12,7 @@ public partial class SettingsWindowViewModel : ObservableObject
     private readonly ISettingsService _settingsService;
     private readonly HotkeyService? _hotkeyService;
     private readonly INdiService? _ndiService;
+    private readonly ThemeService? _themeService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -46,11 +47,18 @@ public partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _clearProgramHotkey = string.Empty;
 
-    public SettingsWindowViewModel(ISettingsService settingsService, HotkeyService? hotkeyService = null, INdiService? ndiService = null)
+    [ObservableProperty]
+    private string _themeMode = "Light";
+
+    [ObservableProperty]
+    private string _accentColor = "#FF0A84FF";
+
+    public SettingsWindowViewModel(ISettingsService settingsService, HotkeyService? hotkeyService = null, INdiService? ndiService = null, ThemeService? themeService = null)
     {
         _settingsService = settingsService;
         _hotkeyService = hotkeyService;
         _ndiService = ndiService;
+        _themeService = themeService;
     }
 
     [RelayCommand]
@@ -69,6 +77,8 @@ public partial class SettingsWindowViewModel : ObservableObject
             Preset4Hotkey = _settingsService.Settings.Hotkeys.Preset4;
             Preset5Hotkey = _settingsService.Settings.Hotkeys.Preset5;
             ClearProgramHotkey = _settingsService.Settings.Hotkeys.ClearProgram;
+            ThemeMode = NormalizeThemeMode(_settingsService.Settings.Theme.Mode);
+            AccentColor = _settingsService.Settings.Theme.AccentColor;
             Status = "Settings loaded.";
         }
         catch (Exception ex)
@@ -93,6 +103,10 @@ public partial class SettingsWindowViewModel : ObservableObject
             _settingsService.Settings.Hotkeys.Preset4 = Preset4Hotkey;
             _settingsService.Settings.Hotkeys.Preset5 = Preset5Hotkey;
             _settingsService.Settings.Hotkeys.ClearProgram = ClearProgramHotkey;
+            _settingsService.Settings.Theme.Mode = NormalizeThemeMode(ThemeMode);
+            _settingsService.Settings.Theme.AccentColor = AccentColor;
+
+            _themeService?.ApplyTheme(_settingsService.Settings.Theme);
 
             await _settingsService.SaveAsync();
 
@@ -110,6 +124,12 @@ public partial class SettingsWindowViewModel : ObservableObject
             Status = $"Error saving settings: {ex.Message}";
             Log.Error(ex, "Failed to save application settings in SettingsWindow.");
         }
+    }
+
+
+    private static string NormalizeThemeMode(string? mode)
+    {
+        return mode?.Trim().ToLowerInvariant() == "dark" ? "Dark" : "Light";
     }
 
     private static NdiConfig CloneNdiConfig(NdiConfig source)

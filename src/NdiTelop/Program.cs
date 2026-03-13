@@ -66,6 +66,7 @@ public static class Program
         services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<IOutputService, OutputService>();
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<ThemeService>();
 
         var serviceProvider = services.BuildServiceProvider();
 

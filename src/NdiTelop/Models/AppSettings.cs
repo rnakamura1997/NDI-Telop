@@ -11,6 +11,8 @@ public class AppSettings
 
     public HotkeySettings Hotkeys { get; set; } = new();
 
+    public ThemeSettings Theme { get; set; } = new();
+
     [JsonIgnore]
     public int HttpPort
     {
