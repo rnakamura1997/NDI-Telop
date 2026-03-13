@@ -1,6 +1,9 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using NdiTelop.Models;
 using NdiTelop.ViewModels;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,9 +13,21 @@ namespace NdiTelop.Views;
 
 public partial class MainWindow : Window
 {
+    private const string PresetDragDataFormat = "application/x-nditelop-preset-id";
+    private Preset? _dragSourcePreset;
+
     public MainWindow()
     {
         InitializeComponent();
+
+        var presetListBox = this.FindControl<ListBox>("PresetListBox");
+        if (presetListBox != null)
+        {
+            DragDrop.SetAllowDrop(presetListBox, true);
+            presetListBox.AddHandler(InputElement.PointerPressedEvent, PresetListBox_OnPointerPressed, RoutingStrategies.Bubble);
+            presetListBox.AddHandler(DragDrop.DragOverEvent, PresetListBox_OnDragOver, RoutingStrategies.Bubble);
+            presetListBox.AddHandler(DragDrop.DropEvent, PresetListBox_OnDrop, RoutingStrategies.Bubble);
+        }
         // DataContextが設定された後にLoadPresetsAsyncを呼び出す
         this.Opened += (sender, e) =>
         {
@@ -24,15 +39,103 @@ public partial class MainWindow : Window
     }
 
 
-    private void OpenSettingsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OpenSettingsButton_OnClick(object? sender, RoutedEventArgs e)
     {
         var settingsWindow = Program.Services.GetRequiredService<SettingsWindow>();
         settingsWindow.DataContext = Program.Services.GetRequiredService<SettingsWindowViewModel>();
         settingsWindow.Show();
     }
 
+    private async void PresetListBox_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var preset = ExtractPresetFromEventSource(e.Source);
+        if (preset == null)
+        {
+            return;
+        }
 
-    private async void ImportPresetsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        _dragSourcePreset = preset;
+
+        var dataObject = new DataObject();
+        dataObject.Set(PresetDragDataFormat, preset.Id);
+        dataObject.Set(DataFormats.Text, preset.Id);
+
+        await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Move);
+    }
+
+    private void PresetListBox_OnDragOver(object? sender, DragEventArgs e)
+    {
+        var targetPreset = ExtractPresetFromEventSource(e.Source);
+        if (_dragSourcePreset == null || targetPreset == null)
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        if (!e.Data.Contains(PresetDragDataFormat))
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private async void PresetListBox_OnDrop(object? sender, DragEventArgs e)
+    {
+        try
+        {
+            if (DataContext is not MainWindowViewModel viewModel)
+            {
+                return;
+            }
+
+            var targetPreset = ExtractPresetFromEventSource(e.Source);
+            if (targetPreset == null)
+            {
+                return;
+            }
+
+            if (_dragSourcePreset == null || _dragSourcePreset.Id == targetPreset.Id)
+            {
+                return;
+            }
+
+            var targetIndex = viewModel.Presets.ToList().FindIndex(p => p.Id == targetPreset.Id);
+            if (targetIndex < 0)
+            {
+                return;
+            }
+
+            await viewModel.MovePresetAsync(_dragSourcePreset.Id, targetIndex);
+            viewModel.SelectedPreset = _dragSourcePreset;
+            e.Handled = true;
+        }
+        finally
+        {
+            _dragSourcePreset = null;
+        }
+    }
+
+    private static Preset? ExtractPresetFromEventSource(object? source)
+    {
+        var current = source as Control;
+        while (current != null)
+        {
+            if (current.DataContext is Preset preset)
+            {
+                return preset;
+            }
+
+            current = current.Parent as Control;
+        }
+
+        return null;
+    }
+
+
+    private async void ImportPresetsButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
         {
@@ -61,7 +164,7 @@ public partial class MainWindow : Window
         await viewModel.ImportPresetsAsync(selected.Path.LocalPath);
     }
 
-    private async void ExportSelectedPresetButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void ExportSelectedPresetButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedPreset == null)
         {
@@ -89,7 +192,7 @@ public partial class MainWindow : Window
         await viewModel.ExportSelectedPresetAsync(file.Path.LocalPath);
     }
 
-    private async void ExportAllPresetsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void ExportAllPresetsButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
         {
@@ -117,7 +220,7 @@ public partial class MainWindow : Window
         await viewModel.ExportAllPresetsAsync(file.Path.LocalPath);
     }
 
-    private async void ImportImageButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void ImportImageButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
         {

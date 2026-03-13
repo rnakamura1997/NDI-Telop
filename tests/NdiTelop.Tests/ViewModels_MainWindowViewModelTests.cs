@@ -9,15 +9,15 @@ namespace NdiTelop.Tests;
 
 public class ViewModels_MainWindowViewModelTests
 {
-    private static MainWindowViewModel CreateViewModel(IReadOnlyList<Preset>? presets = null)
+    private static MainWindowViewModel CreateViewModel(IReadOnlyList<Preset>? presets = null, IPresetService? presetService = null)
     {
         var renderService = new RenderService();
-        var presetService = Substitute.For<IPresetService>();
+        presetService ??= Substitute.For<IPresetService>();
         presetService.Presets.Returns(presets ?? new List<Preset>());
 
         var ndiService = Substitute.For<INdiService>();
         var settingsService = Substitute.For<ISettingsService>();
-        
+
         return new MainWindowViewModel(renderService, presetService, ndiService, settingsService);
     }
 
@@ -36,5 +36,22 @@ public class ViewModels_MainWindowViewModelTests
         var vm = CreateViewModel();
         vm.RenderPreviewCommand.Execute(null);
         Assert.Contains("Preview rendered", vm.Status);
+    }
+
+    [Fact]
+    public async Task MovePresetAsync_ShouldDelegateToPresetService()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        var presets = new List<Preset>
+        {
+            new() { Id = "a", Name = "A" },
+            new() { Id = "b", Name = "B" }
+        };
+        var vm = CreateViewModel(presets, presetService);
+
+        await vm.MovePresetAsync("a", 1);
+
+        await presetService.Received(1).MovePresetAsync("a", 1);
+        Assert.Equal("Preset order updated.", vm.Status);
     }
 }
