@@ -3,6 +3,7 @@ using Avalonia.Platform.Storage;
 using NdiTelop.ViewModels;
 using System.Linq;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace NdiTelop.Views;
 
@@ -57,7 +58,12 @@ internal static class TaskExtensions
 {
     public static void FireAndForget(this Task task)
     {
-        // エラーハンドリングは別途考慮が必要
-        // ここでは単純に例外を無視する
+        _ = task.ContinueWith(t =>
+        {
+            if (t.Exception != null)
+            {
+                Log.Error(t.Exception.Flatten(), "Unhandled exception in fire-and-forget task.");
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
     }
 }

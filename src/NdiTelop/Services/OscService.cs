@@ -1,6 +1,6 @@
-using System.Net;
 using System.Net.Sockets;
 using NdiTelop.Interfaces;
+using Serilog;
 
 namespace NdiTelop.Services;
 
@@ -25,10 +25,23 @@ public class OscService : IOscService
             return Task.CompletedTask;
         }
 
-        _cts = new CancellationTokenSource();
-        _udpClient = new UdpClient(ReceivePort);
-        _listenerTask = ListenLoopAsync(_cts.Token);
-        return Task.CompletedTask;
+        try
+        {
+            _cts = new CancellationTokenSource();
+            _udpClient = new UdpClient(ReceivePort);
+            _listenerTask = ListenLoopAsync(_cts.Token);
+            Log.Information("OSC listener started on UDP port {Port}.", ReceivePort);
+            return Task.CompletedTask;
+        }
+        catch (SocketException ex)
+        {
+            Log.Error(ex, "OSC listener failed to start. Port may already be in use: {Port}", ReceivePort);
+            _cts?.Dispose();
+            _cts = null;
+            _udpClient?.Dispose();
+            _udpClient = null;
+            throw;
+        }
     }
 
     public async Task StopAsync()
@@ -43,18 +56,9 @@ public class OscService : IOscService
 
         if (_listenerTask != null)
         {
-            try
-            {
-                await _listenerTask;
-            }
-            catch (OperationCanceledException)
-            {
-                // no-op
-            }
-            catch (ObjectDisposedException)
-            {
-                // no-op
-            }
+            try { await _listenerTask; }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
         }
 
         _udpClient?.Dispose();
@@ -62,11 +66,11 @@ public class OscService : IOscService
         _cts.Dispose();
         _cts = null;
         _listenerTask = null;
+        Log.Information("OSC listener stopped.");
     }
 
     public Task SendFeedbackAsync(string address, params object[] args)
     {
-        // Phase 6では受信制御のみ実装
         return Task.CompletedTask;
     }
 
@@ -122,17 +126,24 @@ public class OscService : IOscService
         return System.Text.Encoding.UTF8.GetString(payload, 0, terminatorIndex);
     }
 
-    private static bool TryGetPresetId(string address, out string presetId)
+    internal static bool TryGetPresetId(string address, out string presetId)
     {
-        const string prefix = "/telop/show/";
         presetId = string.Empty;
 
-        if (!address.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || address.Length <= prefix.Length)
+        var prefixes = new[] { "/preset/", "/telop/show/" };
+        var prefix = prefixes.FirstOrDefault(p => address.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        if (prefix == null)
         {
             return false;
         }
 
-        presetId = address[prefix.Length..];
-        return !string.IsNullOrWhiteSpace(presetId);
+        var id = address[prefix.Length..].Trim('/');
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        presetId = id;
+        return true;
     }
 }
