@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using NdiTelop.ViewModels;
 using System.Linq;
 using System.Threading.Tasks;
@@ -20,6 +21,14 @@ public partial class MainWindow : Window
                 viewModel.LoadPresetsAsync().FireAndForget();
             }
         };
+    }
+
+
+    private void OpenSettingsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var settingsWindow = Program.Services.GetRequiredService<SettingsWindow>();
+        settingsWindow.DataContext = Program.Services.GetRequiredService<SettingsWindowViewModel>();
+        settingsWindow.Show();
     }
 
     private async void ImportImageButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

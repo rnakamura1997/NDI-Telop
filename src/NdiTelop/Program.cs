@@ -47,7 +47,9 @@ public static class Program
         var services = new ServiceCollection();
 
         services.AddSingleton<MainWindow>();
+        services.AddSingleton<SettingsWindow>();
         services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<SettingsWindowViewModel>();
         services.AddSingleton<PresetEditorViewModel>();
 
         services.AddSingleton<INdiService, NdiService>();
