@@ -79,6 +79,9 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
+      <TextBlock Text="Transition Type:" />
+      <ComboBox ItemsSource="{Binding AvailableTransitionTypes}"
+                SelectedItem="{Binding SelectedPreset.Animation.InType, Mode=TwoWay}" />
       <TextBlock Text="Auto Clear (seconds):" />
       <TextBox Text="{Binding SelectedPreset.AutoClearSeconds}" />
 
