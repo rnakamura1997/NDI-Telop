@@ -48,6 +48,7 @@ public static class Program
 
         services.AddSingleton<MainWindow>();
         services.AddSingleton<SettingsWindow>();
+        services.AddSingleton<HotkeyService>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<SettingsWindowViewModel>();
         services.AddSingleton<PresetEditorViewModel>();
@@ -80,6 +81,9 @@ public static class Program
 
         var presetService = services.GetRequiredService<IPresetService>();
         presetService.LoadPresetsAsync().GetAwaiter().GetResult();
+
+        var hotkeyService = services.GetRequiredService<HotkeyService>();
+        hotkeyService.ApplySettings(settingsService.Settings.Hotkeys);
 
         try
         {

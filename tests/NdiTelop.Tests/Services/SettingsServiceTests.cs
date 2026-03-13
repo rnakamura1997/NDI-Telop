@@ -67,4 +67,21 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(8000, service.Settings.OscPort);
     }
 
+
+    [Fact]
+    public async Task SaveAsync_ShouldPersistHotkeySettings()
+    {
+        var service = new SettingsService(_settingsPath);
+        service.Settings.Hotkeys.Preset1 = "Ctrl+Alt+9";
+        service.Settings.Hotkeys.ClearProgram = "Ctrl+Shift+Backspace";
+
+        await service.SaveAsync();
+
+        var loaded = new SettingsService(_settingsPath);
+        await loaded.LoadAsync();
+
+        Assert.Equal("Ctrl+Alt+9", loaded.Settings.Hotkeys.Preset1);
+        Assert.Equal("Ctrl+Shift+Backspace", loaded.Settings.Hotkeys.ClearProgram);
+    }
+
 }

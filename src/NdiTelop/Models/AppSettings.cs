@@ -9,6 +9,8 @@ public class AppSettings
     public int OscPort { get; set; } = 8000;
     public string AssetPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "data", "assets");
 
+    public HotkeySettings Hotkeys { get; set; } = new();
+
     [JsonIgnore]
     public int HttpPort
     {

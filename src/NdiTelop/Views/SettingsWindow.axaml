@@ -3,13 +3,13 @@
         xmlns:vm="using:NdiTelop.ViewModels"
         x:Class="NdiTelop.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
-        Width="560" Height="520"
+        Width="620" Height="700"
         Title="設定">
   <Design.DataContext>
     <vm:SettingsWindowViewModel />
   </Design.DataContext>
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="150,*" RowSpacing="8" ColumnSpacing="8">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
     <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="NDI設定" FontSize="16" FontWeight="Bold" Margin="0,0,0,4" />
 
     <TextBlock Grid.Row="1" Grid.Column="0" Text="Source Name" VerticalAlignment="Center" />
@@ -37,16 +37,37 @@
     <TextBox Grid.Row="6" Grid.Column="1" Width="140" Text="{Binding WebApiPort}" HorizontalAlignment="Left" />
 
     <TextBlock Grid.Row="7" Grid.Column="0" Text="OSC Port" VerticalAlignment="Center" />
-    <TextBox Grid.Row="7" Grid.Column="1" Width="140" Text="{Binding OscPort}" HorizontalAlignment="Left" VerticalAlignment="Top" />
+    <TextBox Grid.Row="7" Grid.Column="1" Width="140" Text="{Binding OscPort}" HorizontalAlignment="Left" />
 
-    <StackPanel Grid.Row="8" Grid.ColumnSpan="2" Spacing="8">
+    <Separator Grid.Row="8" Grid.ColumnSpan="2" Margin="0,6" />
+    <TextBlock Grid.Row="9" Grid.ColumnSpan="2" Text="ホットキー設定 (例: Ctrl+Alt+1)" FontSize="16" FontWeight="Bold" />
+
+    <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Spacing="6">
+      <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Preset 1" VerticalAlignment="Center" />
+        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Preset1Hotkey}" />
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Preset 2" VerticalAlignment="Center" />
+        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Preset2Hotkey}" />
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Preset 3" VerticalAlignment="Center" />
+        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Preset3Hotkey}" />
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Preset 4" VerticalAlignment="Center" />
+        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Preset4Hotkey}" />
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Preset 5" VerticalAlignment="Center" />
+        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Preset5Hotkey}" />
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Clear Program" VerticalAlignment="Center" />
+        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ClearProgramHotkey}" />
+      </Grid>
+    </StackPanel>
+
+    <StackPanel Grid.Row="11" Grid.ColumnSpan="2" Spacing="8" Margin="0,8,0,0">
       <TextBlock Text="アセットパス" FontSize="16" FontWeight="Bold" />
       <TextBox Text="{Binding AssetPath}" />
-      <TextBlock Text="{Binding Status}" />
-      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-        <Button Content="読込" Command="{Binding LoadCommand}" Width="96" />
-        <Button Content="保存" Command="{Binding SaveCommand}" Width="96" />
-      </StackPanel>
+    </StackPanel>
+
+    <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="{Binding Status}" />
+    <StackPanel Grid.Row="14" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button Content="読込" Command="{Binding LoadCommand}" Width="96" />
+      <Button Content="保存" Command="{Binding SaveCommand}" Width="96" />
     </StackPanel>
   </Grid>
 </Window>
