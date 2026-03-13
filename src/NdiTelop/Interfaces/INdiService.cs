@@ -9,6 +9,7 @@ public interface INdiService : IDisposable
     bool IsProgramActive { get; }
     bool IsPreviewActive { get; }
     Task InitializeAsync(NdiConfig config);
+    Task ReinitializeAsync(NdiConfig config);
     Task SendFrameAsync(NdiChannelType channel, SKBitmap frame);
     Task SetActiveAsync(NdiChannelType channel, bool active);
 }

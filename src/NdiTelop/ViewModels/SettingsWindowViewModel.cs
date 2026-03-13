@@ -11,6 +11,7 @@ public partial class SettingsWindowViewModel : ObservableObject
 {
     private readonly ISettingsService _settingsService;
     private readonly HotkeyService? _hotkeyService;
+    private readonly INdiService? _ndiService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -45,10 +46,11 @@ public partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _clearProgramHotkey = string.Empty;
 
-    public SettingsWindowViewModel(ISettingsService settingsService, HotkeyService? hotkeyService = null)
+    public SettingsWindowViewModel(ISettingsService settingsService, HotkeyService? hotkeyService = null, INdiService? ndiService = null)
     {
         _settingsService = settingsService;
         _hotkeyService = hotkeyService;
+        _ndiService = ndiService;
     }
 
     [RelayCommand]
@@ -91,7 +93,15 @@ public partial class SettingsWindowViewModel : ObservableObject
             _settingsService.Settings.Hotkeys.Preset4 = Preset4Hotkey;
             _settingsService.Settings.Hotkeys.Preset5 = Preset5Hotkey;
             _settingsService.Settings.Hotkeys.ClearProgram = ClearProgramHotkey;
+
             await _settingsService.SaveAsync();
+
+            if (_ndiService != null && _ndiService.IsInitialized)
+            {
+                Status = "NDI更新中...";
+                await _ndiService.ReinitializeAsync(_settingsService.Settings.Ndi);
+            }
+
             _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
             Status = "Settings saved.";
         }

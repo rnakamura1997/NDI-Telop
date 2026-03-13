@@ -11,6 +11,7 @@ public class NdiService : INdiService
 {
     private NewTek.NDI.Sender? _ndiSender;
     private NdiConfig? _ndiConfig;
+    private readonly SemaphoreSlim _senderLock = new(1, 1);
 
     public bool IsInitialized => _ndiSender != null;
     public bool IsProgramActive { get; private set; }
@@ -18,6 +19,9 @@ public class NdiService : INdiService
 
     public async Task InitializeAsync(NdiConfig config)
     {
+        await _senderLock.WaitAsync();
+        try
+        {
         if (IsInitialized)
         {
             Log.Debug("NDI initialize requested while already initialized.");
@@ -48,6 +52,54 @@ public class NdiService : INdiService
         }
 
         await Task.CompletedTask;
+        }
+        finally
+        {
+            _senderLock.Release();
+        }
+    }
+
+    public async Task ReinitializeAsync(NdiConfig config)
+    {
+        await _senderLock.WaitAsync();
+        try
+        {
+            var wasProgramActive = IsProgramActive;
+            var wasPreviewActive = IsPreviewActive;
+
+            _ndiSender?.Dispose();
+            _ndiSender = null;
+            _ndiConfig = null;
+            IsProgramActive = false;
+            IsPreviewActive = false;
+
+            if (!IsRuntimeSupported())
+            {
+                Log.Error("NDI runtime is not supported or not installed.");
+                throw new InvalidOperationException("NDI runtime is not supported or not installed.");
+            }
+
+            _ndiConfig = config;
+            _ndiSender = new NewTek.NDI.Sender(config.SourceName, true, false, Array.Empty<string>());
+            IsProgramActive = wasProgramActive;
+            IsPreviewActive = wasPreviewActive;
+
+            Log.Information("NDI reinitialized successfully. Source={SourceName}, Resolution={Width}x{Height}, Framerate={Numerator}/{Denominator}",
+                config.SourceName,
+                config.ResolutionWidth,
+                config.ResolutionHeight,
+                config.FrameRateN,
+                config.FrameRateD);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "NDI reinitialization failed. Source={SourceName}", config.SourceName);
+            throw;
+        }
+        finally
+        {
+            _senderLock.Release();
+        }
     }
 
     public async Task SendFrameAsync(NdiChannelType channel, SKBitmap frame)
@@ -107,7 +159,21 @@ public class NdiService : INdiService
 
     public void Dispose()
     {
-        _ndiSender?.Dispose();
+        _senderLock.Wait();
+        try
+        {
+            _ndiSender?.Dispose();
+            _ndiSender = null;
+            _ndiConfig = null;
+            IsProgramActive = false;
+            IsPreviewActive = false;
+        }
+        finally
+        {
+            _senderLock.Release();
+            _senderLock.Dispose();
+        }
+
         Log.Information("NDI sender disposed.");
     }
 }
