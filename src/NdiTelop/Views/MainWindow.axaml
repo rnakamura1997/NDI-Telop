@@ -9,7 +9,8 @@
         x:Class="NdiTelop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1280" Height="720"
-        Title="NdiTelop">
+        Title="NdiTelop"
+        KeyDown="OnWindowKeyDown">
   <Design.DataContext>
     <vm:MainWindowViewModel />
   </Design.DataContext>
@@ -131,6 +132,7 @@
           <TextBlock Text="{Binding NdiOutputStatus}" Foreground="White" FontWeight="Bold" FontSize="11" />
         </StackPanel>
         <TextBlock Text="{Binding Status}" Foreground="White" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding AutoClearStatusText}" Foreground="#D0D0D0" FontSize="11" />
         <ItemsControl ItemsSource="{Binding RecentLogs}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>

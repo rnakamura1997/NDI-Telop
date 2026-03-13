@@ -92,6 +92,13 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private Preset? _currentPreviewPreset;
 
+    [ObservableProperty]
+    private int _autoClearRemainingSeconds;
+
+    public string AutoClearStatusText => AutoClearRemainingSeconds > 0
+        ? $"AutoClear in {AutoClearRemainingSeconds}s"
+        : "AutoClear inactive";
+
 
 
 
@@ -182,6 +189,7 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     private DispatcherTimer? _autoClearTimer;
+    private bool _autoClearEnabled;
 
     private DispatcherTimer? _transitionTimer;
     private Preset? _transitionFromPreset;
@@ -268,6 +276,30 @@ public partial class MainWindowViewModel : ObservableObject
             await ShowPresetAsync(preset);
             Status = $"Hotkey: {preset.Name}";
         }
+    }
+
+    public Task TriggerPresetByNumberAsync(int number)
+    {
+        if (number is < 1 or > 9)
+        {
+            Status = $"NumPad{number} ignored: unsupported key.";
+            return Task.CompletedTask;
+        }
+
+        var preset = Presets.ElementAtOrDefault(number - 1);
+        if (preset == null)
+        {
+            Status = $"NumPad{number} ignored: no preset assigned.";
+            return Task.CompletedTask;
+        }
+
+        return TriggerPresetByNumberCoreAsync(number, preset);
+    }
+
+    private async Task TriggerPresetByNumberCoreAsync(int number, Preset preset)
+    {
+        await ShowPresetAsync(preset);
+        Status = $"NumPad{number}: {preset.Name}";
     }
 
     [RelayCommand]
@@ -590,6 +622,7 @@ public partial class MainWindowViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
+        CancelAutoClear("manual operation");
         CurrentPreviewPreset = preset;
         return ApplyProgramPresetAsync(preset, immediate: true, actionName: "Show");
     }
@@ -598,6 +631,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (CurrentProgramPreset == preset)
         {
+            CancelAutoClear("preset redisplay");
             Status = $"{actionName} ignored: preset already on Program ({preset.Name}).";
             return Task.CompletedTask;
         }
@@ -623,21 +657,43 @@ public partial class MainWindowViewModel : ObservableObject
         CurrentProgramPreset = preset;
         Status = $"{actionName}: {preset.Name}";
 
-        // AutoClearSeconds の設定
-        if (_autoClearTimer == null) return Task.CompletedTask;
-
-        if (preset.AutoClearSeconds > 0)
-        {
-            _autoClearTimer.Stop();
-            _autoClearTimer.Interval = TimeSpan.FromSeconds(preset.AutoClearSeconds);
-            _autoClearTimer.Start();
-        }
-        else
-        {
-            _autoClearTimer.Stop();
-        }
+        StartAutoClear(preset);
 
         return Task.CompletedTask;
+    }
+
+    private void StartAutoClear(Preset preset)
+    {
+        if (_autoClearTimer == null)
+        {
+            return;
+        }
+
+        if (preset.AutoClearSeconds <= 0)
+        {
+            CancelAutoClear("preset AutoClear disabled");
+            return;
+        }
+
+        _autoClearEnabled = true;
+        AutoClearRemainingSeconds = preset.AutoClearSeconds;
+        OnPropertyChanged(nameof(AutoClearStatusText));
+        _autoClearTimer.Stop();
+        _autoClearTimer.Start();
+    }
+
+    private void CancelAutoClear(string reason)
+    {
+        _autoClearEnabled = false;
+        _autoClearTimer?.Stop();
+        if (AutoClearRemainingSeconds == 0)
+        {
+            return;
+        }
+
+        AutoClearRemainingSeconds = 0;
+        OnPropertyChanged(nameof(AutoClearStatusText));
+        Log.Information("AutoClear cancelled: {Reason}", reason);
     }
 
     private void TransitionTimer_Tick(object? sender, EventArgs e)
@@ -658,23 +714,39 @@ public partial class MainWindowViewModel : ObservableObject
 
     private async void AutoClearTimer_Tick(object? sender, EventArgs e)
     {
-        if (CurrentProgramPreset == null || CurrentProgramPreset.AutoClearSeconds == 0) return;
+        await HandleAutoClearTickAsync();
+    }
 
-        // AutoClearSeconds はプリセットごとに設定されるべきだが、ここでは ViewModel のプロパティを使用
-        // 実際には CurrentProgramPreset.AutoClearSeconds を使用する
-        if (CurrentProgramPreset.AutoClearSeconds > 0 && _ndiService.IsProgramActive)
+    public async Task HandleAutoClearTickAsync()
+    {
+        if (!_autoClearEnabled || CurrentProgramPreset == null || CurrentProgramPreset.AutoClearSeconds <= 0)
         {
-            // カウンダウンロジック
-            // ここでは簡略化のため、タイマーが発火したらすぐにクリアする
-            // 実際には経過時間を保持し、AutoClearSeconds に達したらクリアする
+            return;
+        }
+
+        if (!_ndiService.IsProgramActive)
+        {
+            CancelAutoClear("program channel inactive");
+            return;
+        }
+
+        if (AutoClearRemainingSeconds > 0)
+        {
+            AutoClearRemainingSeconds--;
+            OnPropertyChanged(nameof(AutoClearStatusText));
+        }
+
+        if (AutoClearRemainingSeconds <= 0)
+        {
             await ClearProgram();
-            _autoClearTimer?.Stop();
+            CancelAutoClear("timer elapsed");
         }
     }
 
     [RelayCommand]
     public async Task ClearProgram()
     {
+        CancelAutoClear("manual clear");
         if (!_ndiService.IsInitialized) return;
 
         // 透明なフレームを送信してクリア

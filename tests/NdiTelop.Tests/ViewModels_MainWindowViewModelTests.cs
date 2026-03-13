@@ -3,6 +3,7 @@ using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using NdiTelop.Services;
 using NdiTelop.ViewModels;
+using System.Linq;
 using Xunit;
 
 namespace NdiTelop.Tests;
@@ -88,6 +89,65 @@ public class ViewModels_MainWindowViewModelTests
         Assert.Contains("already on Program", vm.Status);
     }
 
+
+    [Fact]
+    public async Task TriggerPresetByNumberAsync_ShouldShowMappedPreset()
+    {
+        var presets = Enumerable.Range(1, 3)
+            .Select(i => new Preset { Id = $"p{i}", Name = $"Preset{i}" })
+            .ToList();
+        var vm = CreateViewModel(presets);
+
+        await vm.TriggerPresetByNumberAsync(2);
+
+        Assert.Same(presets[1], vm.CurrentProgramPreset);
+        Assert.Same(presets[1], vm.CurrentPreviewPreset);
+        Assert.Equal("NumPad2: Preset2", vm.Status);
+    }
+
+    [Fact]
+    public async Task TriggerPresetByNumberAsync_ShouldBeSafe_ForInvalidOrUnassignedInput()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+
+        await vm.TriggerPresetByNumberAsync(0);
+        Assert.Equal("NumPad0 ignored: unsupported key.", vm.Status);
+
+        await vm.TriggerPresetByNumberAsync(9);
+        Assert.Equal("NumPad9 ignored: no preset assigned.", vm.Status);
+        Assert.Null(vm.CurrentProgramPreset);
+    }
+
+    [Fact]
+    public async Task AutoClear_ShouldStartCancelAndExpireAsExpected()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1", AutoClearSeconds = 2 };
+        var ndiService = Substitute.For<INdiService>();
+        ndiService.IsProgramActive.Returns(true);
+        ndiService.IsInitialized.Returns(true);
+
+        var vm = CreateViewModel(new List<Preset> { preset }, ndiService: ndiService);
+
+        await vm.ShowPresetCommand.ExecuteAsync(preset);
+        Assert.Equal(2, vm.AutoClearRemainingSeconds);
+
+        await vm.HandleAutoClearTickAsync();
+        Assert.Equal(1, vm.AutoClearRemainingSeconds);
+
+        await vm.ShowPresetCommand.ExecuteAsync(preset);
+        Assert.Equal(0, vm.AutoClearRemainingSeconds);
+        Assert.Contains("already on Program", vm.Status);
+
+        var second = new Preset { Id = "p2", Name = "Preset2", AutoClearSeconds = 1 };
+        var vm2 = CreateViewModel(new List<Preset> { second }, ndiService: ndiService);
+        await vm2.ShowPresetCommand.ExecuteAsync(second);
+        await vm2.HandleAutoClearTickAsync();
+
+        Assert.Null(vm2.CurrentProgramPreset);
+        Assert.Equal(0, vm2.AutoClearRemainingSeconds);
+        Assert.Equal("Program cleared.", vm2.Status);
+    }
     [Fact]
     public async Task TakeAndCut_ShouldBeSafe_WhenPreviewIsNotSetOrProgramInactive()
     {
