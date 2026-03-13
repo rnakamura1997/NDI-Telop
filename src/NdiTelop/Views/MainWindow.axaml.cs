@@ -31,6 +31,92 @@ public partial class MainWindow : Window
         settingsWindow.Show();
     }
 
+
+    private async void ImportPresetsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "プリセットをインポート",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Preset JSON")
+                {
+                    Patterns = ["*.json"]
+                }
+            ]
+        });
+
+        var selected = files.FirstOrDefault();
+        if (selected == null)
+        {
+            return;
+        }
+
+        await viewModel.ImportPresetsAsync(selected.Path.LocalPath);
+    }
+
+    private async void ExportSelectedPresetButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedPreset == null)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "選択プリセットをエクスポート",
+            SuggestedFileName = $"preset_{viewModel.SelectedPreset.Name}.json",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Preset JSON")
+                {
+                    Patterns = ["*.json"]
+                }
+            ]
+        });
+
+        if (file == null)
+        {
+            return;
+        }
+
+        await viewModel.ExportSelectedPresetAsync(file.Path.LocalPath);
+    }
+
+    private async void ExportAllPresetsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "全プリセットをエクスポート",
+            SuggestedFileName = "presets_export.json",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Preset JSON")
+                {
+                    Patterns = ["*.json"]
+                }
+            ]
+        });
+
+        if (file == null)
+        {
+            return;
+        }
+
+        await viewModel.ExportAllPresetsAsync(file.Path.LocalPath);
+    }
+
     private async void ImportImageButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
