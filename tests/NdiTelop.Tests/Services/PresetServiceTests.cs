@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace NdiTelop.Tests.Services;
 
@@ -113,5 +114,55 @@ public class PresetServiceTests : IDisposable
         Assert.True(File.Exists(_testUserPresetPath));
         var savedContent = await File.ReadAllTextAsync(_testUserPresetPath);
         Assert.DoesNotContain(presetToDelete.Name, savedContent);
+    }
+
+    [Fact]
+    public async Task ExportPresetAsync_ShouldCreateSchemaBasedJsonFile()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var exportPath = Path.Combine(_testDataDir, "single_preset_export.json");
+        var targetPreset = service.Presets.First();
+
+        await service.ExportPresetAsync(exportPath, targetPreset.Id);
+
+        Assert.True(File.Exists(exportPath));
+
+        var json = await File.ReadAllTextAsync(exportPath);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("1.0", root.GetProperty("SchemaVersion").GetString());
+        Assert.True(root.TryGetProperty("ExportedAtUtc", out _));
+
+        var presets = root.GetProperty("Presets");
+        Assert.Equal(1, presets.GetArrayLength());
+        Assert.Equal(targetPreset.Id, presets[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
+    public async Task ExportPresetsAsync_AndImportPresetsAsync_ShouldRoundTripMultiplePresets()
+    {
+        var exporter = CreateService();
+        await exporter.LoadPresetsAsync();
+
+        var thirdPreset = new Preset { Id = "custom3", Name = "Custom 3" };
+        await exporter.SavePresetAsync(thirdPreset);
+
+        var exportPath = Path.Combine(_testDataDir, "multi_presets_export.json");
+        var exportIds = exporter.Presets.Select(x => x.Id).ToList();
+
+        await exporter.ExportPresetsAsync(exportPath, exportIds);
+
+        // Use a separate service instance to verify import behavior
+        var importer = CreateService();
+        await importer.LoadPresetsAsync();
+
+        var importedCount = await importer.ImportPresetsAsync(exportPath);
+
+        Assert.Equal(exportIds.Count, importedCount);
+        Assert.Equal(exportIds.Count, importer.Presets.Count);
+        Assert.Contains(importer.Presets, p => p.Name == "Custom 3");
     }
 }

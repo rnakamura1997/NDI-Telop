@@ -310,6 +310,38 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+
+    [RelayCommand]
+    public async Task ExportSelectedPresetAsync(string filePath)
+    {
+        if (SelectedPreset == null)
+        {
+            Status = "No preset selected to export.";
+            return;
+        }
+
+        await _presetService.ExportPresetAsync(filePath, SelectedPreset.Id);
+        Status = $"Preset exported: {SelectedPreset.Name}";
+    }
+
+    [RelayCommand]
+    public async Task ExportAllPresetsAsync(string filePath)
+    {
+        var ids = Presets.Select(p => p.Id).ToList();
+        await _presetService.ExportPresetsAsync(filePath, ids);
+        Status = $"Exported {ids.Count} presets.";
+    }
+
+    [RelayCommand]
+    public async Task ImportPresetsAsync(string filePath)
+    {
+        var importedCount = await _presetService.ImportPresetsAsync(filePath);
+        SelectedPreset ??= Presets.FirstOrDefault();
+        Status = importedCount > 0
+            ? $"Imported {importedCount} presets."
+            : "No presets were imported.";
+    }
+
     [RelayCommand]
     public async Task LoadAppSettingsAsync()
     {
