@@ -7,6 +7,7 @@ public class AppSettings
     public NdiConfig Ndi { get; set; } = new();
     public int WebApiPort { get; set; } = 5000;
     public int OscPort { get; set; } = 8000;
+    public string AssetPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "data", "assets");
 
     [JsonIgnore]
     public int HttpPort
