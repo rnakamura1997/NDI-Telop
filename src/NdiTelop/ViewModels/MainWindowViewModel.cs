@@ -29,6 +29,14 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _status = "Ready";
 
+    [ObservableProperty]
+    private string _ndiOutputStatus = "Inactive";
+
+    [ObservableProperty]
+    private string _ndiOutputStatusColor = "#888888";
+
+    private bool _hasNdiError;
+
 
     [ObservableProperty]
     private Preset? _selectedPreset = new() { Name = "New Preset", TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
@@ -219,6 +227,8 @@ public partial class MainWindowViewModel : ObservableObject
         {
             _hotkeyService.HotkeyPressed += HandleHotkeyPressed;
         }
+
+        RefreshNdiOutputStatus("初期状態");
     }
 
     [RelayCommand]
@@ -385,31 +395,59 @@ public partial class MainWindowViewModel : ObservableObject
         {
             await _ndiService.InitializeAsync(NdiConfig);
             IsNdiInitialized = _ndiService.IsInitialized;
+            _hasNdiError = false;
             Status = "NDI Initialized.";
             Log.Information("NDI initialized from UI command.");
+            RefreshNdiOutputStatus("初期化成功");
             _ndiSendTimer.Start();
         }
         catch (Exception ex)
         {
+            _hasNdiError = true;
             Status = $"Error initializing NDI: {ex.Message}";
             Log.Error(ex, "Failed to initialize NDI from UI command.");
+            RefreshNdiOutputStatus("初期化失敗");
         }
     }
 
     [RelayCommand]
     public async Task SetProgramActiveAsync(bool active)
     {
-        await _ndiService.SetActiveAsync(NdiChannelType.Program, active);
-        IsProgramActive = _ndiService.IsProgramActive;
-        Status = $"NDI Program {(active ? "Active" : "Inactive")}.";
+        try
+        {
+            await _ndiService.SetActiveAsync(NdiChannelType.Program, active);
+            _hasNdiError = false;
+            IsProgramActive = _ndiService.IsProgramActive;
+            Status = $"NDI Program {(active ? "Active" : "Inactive")}.";
+            RefreshNdiOutputStatus("Programチャンネル切替");
+        }
+        catch (Exception ex)
+        {
+            _hasNdiError = true;
+            Status = $"Error updating NDI Program state: {ex.Message}";
+            Log.Error(ex, "Failed to update NDI Program active state.");
+            RefreshNdiOutputStatus("Programチャンネル切替失敗");
+        }
     }
 
     [RelayCommand]
     public async Task SetPreviewActiveAsync(bool active)
     {
-        await _ndiService.SetActiveAsync(NdiChannelType.Preview, active);
-        IsPreviewActive = _ndiService.IsPreviewActive;
-        Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
+        try
+        {
+            await _ndiService.SetActiveAsync(NdiChannelType.Preview, active);
+            _hasNdiError = false;
+            IsPreviewActive = _ndiService.IsPreviewActive;
+            Status = $"NDI Preview {(active ? "Active" : "Inactive")}.";
+            RefreshNdiOutputStatus("Previewチャンネル切替");
+        }
+        catch (Exception ex)
+        {
+            _hasNdiError = true;
+            Status = $"Error updating NDI Preview state: {ex.Message}";
+            Log.Error(ex, "Failed to update NDI Preview active state.");
+            RefreshNdiOutputStatus("Previewチャンネル切替失敗");
+        }
     }
 
     [RelayCommand]
@@ -594,9 +632,37 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _hasNdiError = true;
             Status = $"Error sending NDI frame: {ex.Message}";
             Log.Error(ex, "Failed sending NDI frame.");
+            RefreshNdiOutputStatus("送信エラー");
             _ndiSendTimer.Stop();
         }
+    }
+
+    private void RefreshNdiOutputStatus(string reason)
+    {
+        var nextStatus = "Inactive";
+        var nextColor = "#888888";
+
+        if (_hasNdiError)
+        {
+            nextStatus = "Error";
+            nextColor = "#E74C3C";
+        }
+        else if (_ndiService.IsInitialized && (_ndiService.IsProgramActive || _ndiService.IsPreviewActive))
+        {
+            nextStatus = "Active";
+            nextColor = "#3CB371";
+        }
+
+        if (NdiOutputStatus == nextStatus && NdiOutputStatusColor == nextColor)
+        {
+            return;
+        }
+
+        NdiOutputStatus = nextStatus;
+        NdiOutputStatusColor = nextColor;
+        Log.Information("NDI出力ステータス更新: {Status} ({Reason})", nextStatus, reason);
     }
 }
