@@ -37,8 +37,9 @@ public class RenderService : IRenderService
         using var canvas = new SKCanvas(output);
         canvas.Clear(SKColors.Transparent);
 
-        // Basic slide transition (left to right)
-        if (string.Equals(config.InType, "slide", StringComparison.OrdinalIgnoreCase))
+        var transitionType = config.InType?.Trim() ?? "fade";
+
+        if (string.Equals(transitionType, "slide", StringComparison.OrdinalIgnoreCase))
         {
             var x = (float)renderWidth * (1f - p);
             canvas.DrawBitmap(fromBitmap, 0, 0);
@@ -46,10 +47,52 @@ public class RenderService : IRenderService
             return output;
         }
 
+        if (IsWipeTransition(transitionType, out var isVertical))
+        {
+            canvas.DrawBitmap(fromBitmap, 0, 0);
+
+            if (isVertical)
+            {
+                var wipeHeight = renderHeight * p;
+                if (wipeHeight > 0)
+                {
+                    var sourceRect = new SKRect(0, 0, renderWidth, wipeHeight);
+                    var destRect = new SKRect(0, 0, renderWidth, wipeHeight);
+                    canvas.DrawBitmap(toBitmap, sourceRect, destRect);
+                }
+            }
+            else
+            {
+                var wipeWidth = renderWidth * p;
+                if (wipeWidth > 0)
+                {
+                    var sourceRect = new SKRect(0, 0, wipeWidth, renderHeight);
+                    var destRect = new SKRect(0, 0, wipeWidth, renderHeight);
+                    canvas.DrawBitmap(toBitmap, sourceRect, destRect);
+                }
+            }
+
+            return output;
+        }
+
+        if (string.Equals(transitionType, "zoom", StringComparison.OrdinalIgnoreCase))
+        {
+            canvas.DrawBitmap(fromBitmap, 0, 0);
+
+            var easedProgress = Math.Max(0.05f, p);
+            var scaledWidth = renderWidth * easedProgress;
+            var scaledHeight = renderHeight * easedProgress;
+            var left = (renderWidth - scaledWidth) / 2f;
+            var top = (renderHeight - scaledHeight) / 2f;
+
+            using var zoomPaint = new SKPaint { Color = new SKColor(255, 255, 255, (byte)(255 * p)), IsAntialias = true };
+            canvas.DrawBitmap(toBitmap, new SKRect(left, top, left + scaledWidth, top + scaledHeight), zoomPaint);
+            return output;
+        }
+
         // Basic fade transition
         using var fromPaint = new SKPaint { Color = new SKColor(255, 255, 255, (byte)(255 * (1f - p))) };
         using var toPaint = new SKPaint { Color = new SKColor(255, 255, 255, (byte)(255 * p)) };
-
         canvas.DrawBitmap(fromBitmap, 0, 0, fromPaint);
         canvas.DrawBitmap(toBitmap, 0, 0, toPaint);
 
@@ -123,5 +166,25 @@ public class RenderService : IRenderService
         if (value < 0) return 0;
         if (value > 1) return 1;
         return value;
+    }
+
+    private static bool IsWipeTransition(string transitionType, out bool isVertical)
+    {
+        isVertical = false;
+        if (string.Equals(transitionType, "wipe", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(transitionType, "wipe-horizontal", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(transitionType, "wipe-left-right", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(transitionType, "wipe-vertical", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(transitionType, "wipe-up-down", StringComparison.OrdinalIgnoreCase))
+        {
+            isVertical = true;
+            return true;
+        }
+
+        return false;
     }
 }

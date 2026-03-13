@@ -70,6 +70,35 @@ public class RenderServiceTests
         Assert.False(bitmap.Pixels.All(p => p == 0));
     }
 
+
+    [Theory]
+    [InlineData("wipe")]
+    [InlineData("wipe-vertical")]
+    [InlineData("zoom")]
+    public void RenderTransition_ShouldSupportAdditionalTransitionTypes(string transitionType)
+    {
+        var service = new RenderService();
+        var fromPreset = new Preset
+        {
+            TextLines = [],
+            Background = new BackgroundStyle { Type = "solid", Color = "#0000FF", Alpha = 1.0 }
+        };
+        var toPreset = new Preset
+        {
+            TextLines = [],
+            Background = new BackgroundStyle { Type = "solid", Color = "#00FF00", Alpha = 1.0 }
+        };
+
+        var config = new AnimationConfig { InType = transitionType };
+        var ndiConfig = new NdiConfig { ResolutionWidth = 320, ResolutionHeight = 180 };
+
+        using var bitmap = service.RenderTransition(fromPreset, toPreset, 0.5f, config, ndiConfig);
+
+        Assert.Equal(320, bitmap.Width);
+        Assert.Equal(180, bitmap.Height);
+        Assert.False(bitmap.Pixels.All(p => p == 0));
+    }
+
     [Fact]
     public void Render_WithTransparentBackground_ShouldKeepPixelTransparentWhenNoForeground()
     {

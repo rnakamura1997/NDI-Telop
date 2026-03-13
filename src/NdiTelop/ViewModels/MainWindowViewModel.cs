@@ -65,6 +65,14 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isPreviewActive;
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
+    public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
+    {
+        "fade",
+        "slide",
+        "wipe",
+        "wipe-vertical",
+        "zoom"
+    };
 
     [ObservableProperty]
     private Preset? _currentProgramPreset;
