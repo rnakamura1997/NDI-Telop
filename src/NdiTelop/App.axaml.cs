@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using NdiTelop.Interfaces;
 using NdiTelop.ViewModels;
 using NdiTelop.Views;
 
@@ -17,6 +18,10 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var settingsService = Program.Services.GetRequiredService<ISettingsService>();
+            var themeService = Program.Services.GetRequiredService<Services.ThemeService>();
+            themeService.ApplyTheme(settingsService.Settings.Theme);
+
             var window = Program.Services.GetRequiredService<MainWindow>();
             window.DataContext = Program.Services.GetRequiredService<MainWindowViewModel>();
             desktop.MainWindow = window;

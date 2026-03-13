@@ -3,13 +3,13 @@
         xmlns:vm="using:NdiTelop.ViewModels"
         x:Class="NdiTelop.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
-        Width="620" Height="700"
+        Width="620" Height="780"
         Title="設定">
   <Design.DataContext>
     <vm:SettingsWindowViewModel />
   </Design.DataContext>
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
     <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="NDI設定" FontSize="16" FontWeight="Bold" Margin="0,0,0,4" />
 
     <TextBlock Grid.Row="1" Grid.Column="0" Text="Source Name" VerticalAlignment="Center" />
@@ -64,8 +64,24 @@
       <TextBox Text="{Binding AssetPath}" />
     </StackPanel>
 
-    <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="{Binding Status}" />
-    <StackPanel Grid.Row="14" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+
+
+    <Separator Grid.Row="12" Grid.ColumnSpan="2" Margin="0,6" />
+    <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="テーマ設定" FontSize="16" FontWeight="Bold" />
+
+    <Grid Grid.Row="14" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="テーマ" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="0" Grid.Column="1" SelectedItem="{Binding ThemeMode}">
+        <x:String>Light</x:String>
+        <x:String>Dark</x:String>
+      </ComboBox>
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="アクセントカラー" VerticalAlignment="Center" />
+      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AccentColor}" Watermark="#FF0A84FF" />
+    </Grid>
+
+    <TextBlock Grid.Row="15" Grid.ColumnSpan="2" Text="{Binding Status}" />
+    <StackPanel Grid.Row="16" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
       <Button Content="読込" Command="{Binding LoadCommand}" Width="96" />
       <Button Content="保存" Command="{Binding SaveCommand}" Width="96" />
     </StackPanel>
