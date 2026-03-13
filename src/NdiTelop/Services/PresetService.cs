@@ -211,6 +211,46 @@ public class PresetService : IPresetService
         ApplySortOrder();
     }
 
-    public Task ImportFromCsvAsync(string filePath) => Task.CompletedTask;
-    public Task ExportToCsvAsync(string filePath) => Task.CompletedTask;
+    public async Task ImportFromCsvAsync(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        var importedPresets = await CsvPresetCodec.ReadAsync(filePath);
+        if (importedPresets.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var importedPreset in importedPresets)
+        {
+            var existingIndex = _presets.ToList().FindIndex(p => p.Id == importedPreset.Id);
+            if (existingIndex >= 0)
+            {
+                importedPreset.SortOrder = _presets[existingIndex].SortOrder;
+                _presets[existingIndex] = importedPreset;
+            }
+            else
+            {
+                importedPreset.SortOrder = _presets.Count;
+                _presets.Add(importedPreset);
+            }
+        }
+
+        ApplySortOrder();
+        await _storage.SaveToFileAsync(_userPresetPath, _presets.ToList());
+    }
+
+    public async Task ExportToCsvAsync(string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await CsvPresetCodec.WriteAsync(filePath, _presets.ToList());
+    }
 }

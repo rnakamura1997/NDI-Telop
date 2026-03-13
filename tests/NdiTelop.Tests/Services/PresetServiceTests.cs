@@ -184,4 +184,122 @@ public class PresetServiceTests : IDisposable
         Assert.Equal(exportIds.Count, importer.Presets.Count);
         Assert.Contains(importer.Presets, p => p.Name == "Custom 3");
     }
+
+    [Fact]
+    public async Task ExportToCsvAsync_ShouldGenerateExpectedCsvWithHeader()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var preset = new Preset
+        {
+            Id = "csv1",
+            Name = "CSV Preset",
+            AutoClearSeconds = 12,
+            Background = new BackgroundStyle { Type = "solid", Color = "#112233", Alpha = 0.5 },
+            Animation = new AnimationConfig { InType = "fade", OutType = "slide", SpeedSeconds = 0.7f, Easing = "EaseIn" },
+            TextLines = [new TextLine { Text = "Line1", FontFamily = "Meiryo", FontSize = 40, Color = "#FFFFFF" }],
+            Overlays = [new OverlayItem { Path = "overlay.png", X = 10, Y = 20, Width = 100, Height = 80, Opacity = 0.8, IsVisible = true }]
+        };
+
+        await service.SavePresetAsync(preset);
+
+        var csvPath = Path.Combine(_testDataDir, "export.csv");
+        await service.ExportToCsvAsync(csvPath);
+
+        Assert.True(File.Exists(csvPath));
+        var lines = await File.ReadAllLinesAsync(csvPath);
+        Assert.True(lines.Length >= 2);
+        Assert.Contains("Id,Name,AutoClearSeconds", lines[0]);
+        Assert.Contains("csv1", string.Join('\n', lines));
+        Assert.Contains("CSV Preset", string.Join('\n', lines));
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_ShouldCreatePresetsFromCsv()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var csvPath = Path.Combine(_testDataDir, "import.csv");
+        var textLinesJson = "[{\"Text\":\"Imported\",\"FontFamily\":\"Meiryo\",\"FontSize\":48,\"Color\":\"#FFFFFF\"}]";
+        var overlaysJson = "[]";
+        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson";
+        var row = $"imported1,Imported Preset,5,solid,#000000,0.25,fade,cut,0.3,Linear,\"{textLinesJson.Replace("\"", "\"\"")}\",\"{overlaysJson}\"";
+        await File.WriteAllTextAsync(csvPath, header + Environment.NewLine + row);
+
+        await service.ImportFromCsvAsync(csvPath);
+
+        var imported = service.Presets.FirstOrDefault(x => x.Id == "imported1");
+        Assert.NotNull(imported);
+        Assert.Equal("Imported Preset", imported!.Name);
+        Assert.Equal(5, imported.AutoClearSeconds);
+        Assert.Single(imported.TextLines);
+        Assert.Equal("Imported", imported.TextLines[0].Text);
+    }
+
+    [Fact]
+    public async Task ExportToCsvAsync_AndImportFromCsvAsync_ShouldRoundTrip()
+    {
+        var exporter = CreateService();
+        await exporter.LoadPresetsAsync();
+
+        var preset = new Preset
+        {
+            Id = "roundtrip1",
+            Name = "Round Trip",
+            AutoClearSeconds = 9,
+            Background = new BackgroundStyle { Type = "solid", Color = "#010203", Alpha = 0.3 },
+            Animation = new AnimationConfig { InType = "wipe", OutType = "cut", SpeedSeconds = 0.9f, Easing = "Linear" },
+            TextLines = [new TextLine { Text = "RT" }]
+        };
+        await exporter.SavePresetAsync(preset);
+
+        var csvPath = Path.Combine(_testDataDir, "roundtrip.csv");
+        await exporter.ExportToCsvAsync(csvPath);
+
+        var importer = CreateService();
+        await importer.LoadPresetsAsync();
+        await importer.ImportFromCsvAsync(csvPath);
+
+        var imported = importer.Presets.FirstOrDefault(x => x.Id == "roundtrip1");
+        Assert.NotNull(imported);
+        Assert.Equal("Round Trip", imported!.Name);
+        Assert.Equal(9, imported.AutoClearSeconds);
+        Assert.Equal("RT", imported.TextLines[0].Text);
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_ShouldIgnoreEmptyAndInvalidRows()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var csvPath = Path.Combine(_testDataDir, "invalid.csv");
+        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson";
+        var invalidRow = "bad1,Bad Preset,not_number,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\"";
+        var validRow = "good1,Good Preset,3,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\"";
+        var body = string.Join(Environment.NewLine, new[] { "", header, "", invalidRow, validRow, "" });
+        await File.WriteAllTextAsync(csvPath, body);
+
+        await service.ImportFromCsvAsync(csvPath);
+
+        Assert.Null(service.Presets.FirstOrDefault(x => x.Id == "bad1"));
+        Assert.NotNull(service.Presets.FirstOrDefault(x => x.Id == "good1"));
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_WithEmptyFile_ShouldNotChangePresets()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+        var beforeCount = service.Presets.Count;
+
+        var csvPath = Path.Combine(_testDataDir, "empty.csv");
+        await File.WriteAllTextAsync(csvPath, string.Empty);
+
+        await service.ImportFromCsvAsync(csvPath);
+
+        Assert.Equal(beforeCount, service.Presets.Count);
+    }
 }
