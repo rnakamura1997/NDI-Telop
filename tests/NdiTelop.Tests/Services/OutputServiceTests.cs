@@ -38,6 +38,26 @@ public class OutputServiceTests
         Assert.Equal(1, backend.StopCalls);
     }
 
+
+    [Fact]
+    public async Task SpoutBackendSelection_ShouldCallSpoutBackendOnly()
+    {
+        var virtualCamera = new TestOutputBackend("VirtualCamera");
+        var deckLink = new TestOutputBackend("DeckLink");
+        var spout = new TestOutputBackend("Spout2");
+        var service = CreateService(virtualCamera, deckLink, spout);
+
+        await service.StartSpoutAsync("poc-sender");
+        await service.SendSpoutFrameAsync(new byte[] { 4, 5, 6 });
+        await service.StopSpoutAsync();
+
+        Assert.Equal(0, virtualCamera.StartCalls);
+        Assert.Equal(0, deckLink.StartCalls);
+        Assert.Equal(1, spout.StartCalls);
+        Assert.Equal(1, spout.SendCalls);
+        Assert.Equal(1, spout.StopCalls);
+    }
+
     [Fact]
     public async Task BackendExceptions_ShouldNotEscapeAndShouldRemainStable()
     {
