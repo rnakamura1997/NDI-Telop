@@ -9,13 +9,16 @@ namespace NdiTelop.Tests;
 
 public class ViewModels_MainWindowViewModelTests
 {
-    private static MainWindowViewModel CreateViewModel(IReadOnlyList<Preset>? presets = null, IPresetService? presetService = null)
+    private static MainWindowViewModel CreateViewModel(
+        IReadOnlyList<Preset>? presets = null,
+        IPresetService? presetService = null,
+        INdiService? ndiService = null)
     {
         var renderService = new RenderService();
         presetService ??= Substitute.For<IPresetService>();
         presetService.Presets.Returns(presets ?? new List<Preset>());
 
-        var ndiService = Substitute.For<INdiService>();
+        ndiService ??= Substitute.For<INdiService>();
         var settingsService = Substitute.For<ISettingsService>();
 
         return new MainWindowViewModel(renderService, presetService, ndiService, settingsService);
@@ -53,5 +56,51 @@ public class ViewModels_MainWindowViewModelTests
 
         await presetService.Received(1).MovePresetAsync("a", 1);
         Assert.Equal("Preset order updated.", vm.Status);
+    }
+
+    [Fact]
+    public async Task Take_ShouldApplyPreviewPresetToProgram_WhenProgramIsActive()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+        vm.IsProgramActive = true;
+
+        await vm.SelectPreviewPresetCommand.ExecuteAsync(preset);
+        await vm.TakeCommand.ExecuteAsync(null);
+
+        Assert.Same(preset, vm.CurrentPreviewPreset);
+        Assert.Same(preset, vm.CurrentProgramPreset);
+        Assert.Equal("TAKE: Preset1", vm.Status);
+    }
+
+    [Fact]
+    public async Task Cut_ShouldApplyImmediatelyAndIgnoreSamePresetReapply()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+        vm.IsProgramActive = true;
+
+        await vm.SelectPreviewPresetCommand.ExecuteAsync(preset);
+        await vm.CutCommand.ExecuteAsync(null);
+        Assert.Equal("CUT: Preset1", vm.Status);
+
+        await vm.CutCommand.ExecuteAsync(null);
+        Assert.Contains("already on Program", vm.Status);
+    }
+
+    [Fact]
+    public async Task TakeAndCut_ShouldBeSafe_WhenPreviewIsNotSetOrProgramInactive()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+
+        await vm.TakeCommand.ExecuteAsync(null);
+        Assert.Equal("TAKE ignored: preview preset is not set.", vm.Status);
+        Assert.Null(vm.CurrentProgramPreset);
+
+        await vm.SelectPreviewPresetCommand.ExecuteAsync(preset);
+        await vm.CutCommand.ExecuteAsync(null);
+        Assert.Equal("CUT ignored: Program channel is inactive.", vm.Status);
+        Assert.Null(vm.CurrentProgramPreset);
     }
 }

@@ -89,6 +89,9 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private Preset? _currentProgramPreset;
 
+    [ObservableProperty]
+    private Preset? _currentPreviewPreset;
+
 
 
 
@@ -523,20 +526,102 @@ public partial class MainWindowViewModel : ObservableObject
 
     public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }
 
+    [RelayCommand]
+    private Task SelectPreviewPresetAsync(Preset? preset)
+    {
+        if (preset == null)
+        {
+            Status = "No preset selected for preview.";
+            return Task.CompletedTask;
+        }
+
+        if (CurrentPreviewPreset == preset)
+        {
+            Status = $"Preview preset already selected: {preset.Name}";
+            return Task.CompletedTask;
+        }
+
+        CurrentPreviewPreset = preset;
+        Status = $"Preview preset selected: {preset.Name}";
+        return Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private Task TakeAsync()
+    {
+        if (CurrentPreviewPreset == null)
+        {
+            Status = "TAKE ignored: preview preset is not set.";
+            return Task.CompletedTask;
+        }
+
+        if (!IsProgramActive)
+        {
+            Status = "TAKE ignored: Program channel is inactive.";
+            return Task.CompletedTask;
+        }
+
+        return ApplyProgramPresetAsync(CurrentPreviewPreset, immediate: false, actionName: "TAKE");
+    }
+
+    [RelayCommand]
+    private Task CutAsync()
+    {
+        if (CurrentPreviewPreset == null)
+        {
+            Status = "CUT ignored: preview preset is not set.";
+            return Task.CompletedTask;
+        }
+
+        if (!IsProgramActive)
+        {
+            Status = "CUT ignored: Program channel is inactive.";
+            return Task.CompletedTask;
+        }
+
+        return ApplyProgramPresetAsync(CurrentPreviewPreset, immediate: true, actionName: "CUT");
+    }
+
     private Task ShowPresetAsync(Preset? preset)
     {
-        if (preset == null || CurrentProgramPreset == preset) return Task.CompletedTask;
+        if (preset == null)
+        {
+            Status = "No preset selected to show.";
+            return Task.CompletedTask;
+        }
 
-        _transitionFromPreset = CurrentProgramPreset ?? new Preset(); // If null, transition from empty
-        _transitionToPreset = preset;
-        _transitionProgress = 0f;
+        CurrentPreviewPreset = preset;
+        return ApplyProgramPresetAsync(preset, immediate: true, actionName: "Show");
+    }
 
-        _transitionTimer?.Stop();
-        _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
-        _transitionTimer.Start();
+    private Task ApplyProgramPresetAsync(Preset preset, bool immediate, string actionName)
+    {
+        if (CurrentProgramPreset == preset)
+        {
+            Status = $"{actionName} ignored: preset already on Program ({preset.Name}).";
+            return Task.CompletedTask;
+        }
 
-        // This will become the new active preset after the transition
+        if (immediate)
+        {
+            _transitionTimer?.Stop();
+            _transitionFromPreset = null;
+            _transitionToPreset = null;
+            _transitionProgress = 1f;
+        }
+        else
+        {
+            _transitionFromPreset = CurrentProgramPreset ?? new Preset(); // If null, transition from empty
+            _transitionToPreset = preset;
+            _transitionProgress = 0f;
+
+            _transitionTimer?.Stop();
+            _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
+            _transitionTimer.Start();
+        }
+
         CurrentProgramPreset = preset;
+        Status = $"{actionName}: {preset.Name}";
 
         // AutoClearSeconds の設定
         if (_autoClearTimer == null) return Task.CompletedTask;
@@ -602,6 +687,7 @@ public partial class MainWindowViewModel : ObservableObject
             await _ndiService.SendFrameAsync(NdiChannelType.Preview, transparentBitmap);
         }
         CurrentProgramPreset = null;
+        CurrentPreviewPreset = null;
         Status = "Program cleared.";
         Log.Information("Program output cleared.");
     }
@@ -619,23 +705,33 @@ public partial class MainWindowViewModel : ObservableObject
 
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
-        if (CurrentProgramPreset == null || !_ndiService.IsInitialized) return;
+        if (!_ndiService.IsInitialized) return;
 
         try
         {
-            SKBitmap bitmap;
-            if (_transitionFromPreset != null && _transitionToPreset != null)
+            if (CurrentProgramPreset != null)
             {
-                bitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
-            }
-            else
-            {
-                bitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+                SKBitmap programBitmap;
+                if (_transitionFromPreset != null && _transitionToPreset != null)
+                {
+                    programBitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
+                }
+                else
+                {
+                    programBitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+                }
+
+                using (programBitmap)
+                {
+                    await _ndiService.SendFrameAsync(NdiChannelType.Program, programBitmap);
+                }
             }
 
-            using (bitmap)
-            await _ndiService.SendFrameAsync(NdiChannelType.Program, bitmap);
-            await _ndiService.SendFrameAsync(NdiChannelType.Preview, bitmap);
+            if (CurrentPreviewPreset != null)
+            {
+                using var previewBitmap = _renderService.Render(CurrentPreviewPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+                await _ndiService.SendFrameAsync(NdiChannelType.Preview, previewBitmap);
+            }
         }
         catch (Exception ex)
         {
