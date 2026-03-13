@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using NdiTelop.Interfaces;
+using NdiTelop.Services.WebUi;
 
 namespace NdiTelop.Services;
 
@@ -107,6 +108,24 @@ public class WebApiService : IWebApiService
             var request = context.Request;
             var path = request.Url?.AbsolutePath?.TrimEnd('/') ?? string.Empty;
 
+            if (request.HttpMethod == HttpMethod.Get.Method && (string.IsNullOrEmpty(path) || path.Equals("/index.html", StringComparison.OrdinalIgnoreCase)))
+            {
+                await WriteTextAsync(context.Response, HttpStatusCode.OK, "text/html; charset=utf-8", WebUiStaticContent.IndexHtml);
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/web-ui.css", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteTextAsync(context.Response, HttpStatusCode.OK, "text/css; charset=utf-8", WebUiStaticContent.StylesCss);
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/web-ui.js", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteTextAsync(context.Response, HttpStatusCode.OK, "application/javascript; charset=utf-8", WebUiStaticContent.ScriptJs);
+                return;
+            }
+
             if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/api/presets", StringComparison.OrdinalIgnoreCase))
             {
                 var data = _coordinator.GetPresets().Select(p => new { p.Id, p.Name });
@@ -143,6 +162,17 @@ public class WebApiService : IWebApiService
                 await WriteJsonAsync(context.Response, HttpStatusCode.InternalServerError, new { message = "Internal server error." });
             }
         }
+    }
+
+    private static async Task WriteTextAsync(HttpListenerResponse response, HttpStatusCode statusCode, string contentType, string payload)
+    {
+        response.StatusCode = (int)statusCode;
+        response.ContentType = contentType;
+
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        response.ContentLength64 = bytes.Length;
+        await response.OutputStream.WriteAsync(bytes);
+        response.OutputStream.Close();
     }
 
     private async Task WriteJsonAsync(HttpListenerResponse response, HttpStatusCode statusCode, object payload)

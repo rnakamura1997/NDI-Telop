@@ -91,6 +91,68 @@ public class ExternalControlServicesTests
         }
     }
 
+    [Fact]
+    public async Task WebApiService_ShouldServeWebUiEntrypointAndStaticAssets()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+
+        var coordinator = new ExternalControlCoordinator(presetService);
+        var port = GetFreeTcpPort();
+        var webApiService = new WebApiService(coordinator)
+        {
+            Port = port
+        };
+
+        await webApiService.StartAsync();
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+
+            var indexResponse = await client.GetAsync("/");
+            Assert.Equal(HttpStatusCode.OK, indexResponse.StatusCode);
+            Assert.Equal("text/html", indexResponse.Content.Headers.ContentType?.MediaType);
+
+            var cssResponse = await client.GetAsync("/web-ui.css");
+            Assert.Equal(HttpStatusCode.OK, cssResponse.StatusCode);
+
+            var jsResponse = await client.GetAsync("/web-ui.js");
+            Assert.Equal(HttpStatusCode.OK, jsResponse.StatusCode);
+            Assert.Equal("application/javascript", jsResponse.Content.Headers.ContentType?.MediaType);
+        }
+        finally
+        {
+            await webApiService.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task WebApiService_ShouldReturnNotFound_ForUnknownUrl()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+
+        var coordinator = new ExternalControlCoordinator(presetService);
+        var port = GetFreeTcpPort();
+        var webApiService = new WebApiService(coordinator)
+        {
+            Port = port
+        };
+
+        await webApiService.StartAsync();
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            var response = await client.GetAsync("/unknown-path");
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+        finally
+        {
+            await webApiService.StopAsync();
+        }
+    }
+
     private static byte[] BuildOscAddressPacket(string address)
     {
         var addressBytes = System.Text.Encoding.UTF8.GetBytes(address);
