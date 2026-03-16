@@ -13,6 +13,8 @@ public class AppSettings
 
     public ThemeSettings Theme { get; set; } = new();
 
+    public OutputSettings Output { get; set; } = new();
+
     [JsonIgnore]
     public int HttpPort
     {

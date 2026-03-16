@@ -1,3 +1,5 @@
+using NdiTelop.Models;
+
 namespace NdiTelop.Interfaces;
 
 public interface IOutputService
@@ -9,4 +11,5 @@ public interface IOutputService
     Task StartSpoutAsync(string senderName);
     Task StopSpoutAsync();
     IReadOnlyList<string> GetAvailableDeckLinkDevices();
+    Task ApplySettingsAsync(OutputSettings settings);
 }

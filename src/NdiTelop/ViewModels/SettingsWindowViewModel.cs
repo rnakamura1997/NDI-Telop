@@ -13,6 +13,7 @@ public partial class SettingsWindowViewModel : ObservableObject
     private readonly HotkeyService? _hotkeyService;
     private readonly INdiService? _ndiService;
     private readonly ThemeService? _themeService;
+    private readonly IOutputService? _outputService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -53,12 +54,29 @@ public partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _accentColor = "#FF0A84FF";
 
-    public SettingsWindowViewModel(ISettingsService settingsService, HotkeyService? hotkeyService = null, INdiService? ndiService = null, ThemeService? themeService = null)
+    [ObservableProperty]
+    private OutputBackendType _selectedOutputBackend = OutputBackendType.Ndi;
+
+    [ObservableProperty]
+    private string _spoutSenderName = "NdiTelop-Spout2";
+
+    [ObservableProperty]
+    private int _deckLinkDeviceIndex;
+
+    public IReadOnlyList<string> AvailableDeckLinkDevices => _outputService?.GetAvailableDeckLinkDevices() ?? [];
+
+    public SettingsWindowViewModel(
+        ISettingsService settingsService,
+        HotkeyService? hotkeyService = null,
+        INdiService? ndiService = null,
+        ThemeService? themeService = null,
+        IOutputService? outputService = null)
     {
         _settingsService = settingsService;
         _hotkeyService = hotkeyService;
         _ndiService = ndiService;
         _themeService = themeService;
+        _outputService = outputService;
     }
 
     [RelayCommand]
@@ -79,6 +97,9 @@ public partial class SettingsWindowViewModel : ObservableObject
             ClearProgramHotkey = _settingsService.Settings.Hotkeys.ClearProgram;
             ThemeMode = NormalizeThemeMode(_settingsService.Settings.Theme.Mode);
             AccentColor = _settingsService.Settings.Theme.AccentColor;
+            SelectedOutputBackend = _settingsService.Settings.Output.SelectedBackend;
+            SpoutSenderName = _settingsService.Settings.Output.SpoutSenderName;
+            DeckLinkDeviceIndex = _settingsService.Settings.Output.DeckLinkDeviceIndex;
             Status = "Settings loaded.";
         }
         catch (Exception ex)
@@ -105,6 +126,9 @@ public partial class SettingsWindowViewModel : ObservableObject
             _settingsService.Settings.Hotkeys.ClearProgram = ClearProgramHotkey;
             _settingsService.Settings.Theme.Mode = NormalizeThemeMode(ThemeMode);
             _settingsService.Settings.Theme.AccentColor = AccentColor;
+            _settingsService.Settings.Output.SelectedBackend = SelectedOutputBackend;
+            _settingsService.Settings.Output.SpoutSenderName = SpoutSenderName;
+            _settingsService.Settings.Output.DeckLinkDeviceIndex = DeckLinkDeviceIndex;
 
             _themeService?.ApplyTheme(_settingsService.Settings.Theme);
 
@@ -114,6 +138,11 @@ public partial class SettingsWindowViewModel : ObservableObject
             {
                 Status = "NDI更新中...";
                 await _ndiService.ReinitializeAsync(_settingsService.Settings.Ndi);
+            }
+
+            if (_outputService != null)
+            {
+                await _outputService.ApplySettingsAsync(_settingsService.Settings.Output);
             }
 
             _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);

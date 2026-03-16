@@ -1,3 +1,4 @@
+using NdiTelop.Models;
 using NdiTelop.Services;
 using Xunit;
 
@@ -98,6 +99,25 @@ public class SettingsServiceTests : IDisposable
 
         Assert.Equal("Dark", loaded.Settings.Theme.Mode);
         Assert.Equal("#FFFF4081", loaded.Settings.Theme.AccentColor);
+    }
+
+
+    [Fact]
+    public async Task SaveAsync_ShouldPersistOutputSettings()
+    {
+        var service = new SettingsService(_settingsPath);
+        service.Settings.Output.SelectedBackend = OutputBackendType.DeckLink;
+        service.Settings.Output.SpoutSenderName = "Studio-Spout";
+        service.Settings.Output.DeckLinkDeviceIndex = 3;
+
+        await service.SaveAsync();
+
+        var loaded = new SettingsService(_settingsPath);
+        await loaded.LoadAsync();
+
+        Assert.Equal(OutputBackendType.DeckLink, loaded.Settings.Output.SelectedBackend);
+        Assert.Equal("Studio-Spout", loaded.Settings.Output.SpoutSenderName);
+        Assert.Equal(3, loaded.Settings.Output.DeckLinkDeviceIndex);
     }
 
 }

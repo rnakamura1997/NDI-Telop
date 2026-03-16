@@ -1,4 +1,5 @@
 using NdiTelop.Interfaces;
+using NdiTelop.Models;
 using NdiTelop.Services.Output;
 using Serilog;
 
@@ -9,6 +10,7 @@ public class OutputService : IOutputService
     private readonly BackendState _virtualCameraState;
     private readonly BackendState _deckLinkState;
     private readonly BackendState _spoutState;
+    private OutputBackendType _activeBackend = OutputBackendType.Ndi;
 
     public OutputService()
         : this(
@@ -57,11 +59,50 @@ public class OutputService : IOutputService
 
     public IReadOnlyList<string> GetAvailableDeckLinkDevices() => _deckLinkState.Backend.GetAvailableDevices();
 
+    public async Task ApplySettingsAsync(OutputSettings settings)
+    {
+        await StopActiveBackendAsync();
+
+        switch (settings.SelectedBackend)
+        {
+            case OutputBackendType.Spout2:
+                await StartSpoutAsync(settings.SpoutSenderName);
+                break;
+            case OutputBackendType.VirtualCamera:
+                await StartVirtualCameraAsync();
+                break;
+            case OutputBackendType.DeckLink:
+                await StartDeckLinkOutputAsync(settings.DeckLinkDeviceIndex);
+                break;
+            case OutputBackendType.Ndi:
+            default:
+                break;
+        }
+
+        _activeBackend = settings.SelectedBackend;
+    }
+
     public Task SendVirtualCameraFrameAsync(ReadOnlyMemory<byte> payload) => SendAsync(_virtualCameraState, payload);
 
     public Task SendDeckLinkFrameAsync(ReadOnlyMemory<byte> payload) => SendAsync(_deckLinkState, payload);
 
     public Task SendSpoutFrameAsync(ReadOnlyMemory<byte> payload) => SendAsync(_spoutState, payload);
+
+    private async Task StopActiveBackendAsync()
+    {
+        switch (_activeBackend)
+        {
+            case OutputBackendType.Spout2:
+                await StopSpoutAsync();
+                break;
+            case OutputBackendType.VirtualCamera:
+                await StopVirtualCameraAsync();
+                break;
+            case OutputBackendType.DeckLink:
+                await StopDeckLinkOutputAsync();
+                break;
+        }
+    }
 
     private static async Task StartAsync(BackendState state, OutputStartContext context)
     {
