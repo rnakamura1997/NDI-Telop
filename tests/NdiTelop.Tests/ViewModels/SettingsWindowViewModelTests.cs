@@ -58,4 +58,28 @@ public class SettingsWindowViewModelTests
         await ndiService.DidNotReceiveWithAnyArgs().ReinitializeAsync(default!);
         Assert.Equal("Settings saved.", vm.Status);
     }
+    [Fact]
+    public async Task SaveAsync_ShouldApplyOutputSettingsToOutputService()
+    {
+        var settings = new AppSettings();
+        var settingsService = Substitute.For<ISettingsService>();
+        settingsService.Settings.Returns(settings);
+
+        var outputService = Substitute.For<IOutputService>();
+
+        var vm = new SettingsWindowViewModel(settingsService, hotkeyService: null, ndiService: null, themeService: null, outputService: outputService)
+        {
+            SelectedOutputBackend = OutputBackendType.Spout2,
+            SpoutSenderName = "DemoSender",
+            DeckLinkDeviceIndex = 2
+        };
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        await outputService.Received(1).ApplySettingsAsync(Arg.Is<OutputSettings>(s =>
+            s.SelectedBackend == OutputBackendType.Spout2 &&
+            s.SpoutSenderName == "DemoSender" &&
+            s.DeckLinkDeviceIndex == 2));
+    }
+
 }

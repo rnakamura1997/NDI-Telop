@@ -107,5 +107,16 @@ public static class Program
         {
             Log.Error(ex, "Web API initialization failed (port: {Port}).", settingsService.Settings.WebApiPort);
         }
+
+
+        try
+        {
+            var outputService = services.GetRequiredService<IOutputService>();
+            outputService.ApplySettingsAsync(settingsService.Settings.Output).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Output backend initialization failed.");
+        }
     }
 }
