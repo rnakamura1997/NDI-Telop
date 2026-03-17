@@ -100,8 +100,22 @@ public class RenderService : IRenderService
         return output;
     }
 
-    private static void DrawBackground(SKCanvas canvas, BackgroundStyle bg, int width, int height)
+    private void DrawBackground(SKCanvas canvas, BackgroundStyle bg, int width, int height)
     {
+        if (string.Equals(bg.Type, "image", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(bg.AssetPath))
+        {
+            var backgroundPath = _assetService.ResolvePath(bg.AssetPath);
+            if (File.Exists(backgroundPath))
+            {
+                using var image = SKBitmap.Decode(backgroundPath);
+                if (image != null)
+                {
+                    canvas.DrawBitmap(image, new SKRect(0, 0, width, height));
+                    return;
+                }
+            }
+        }
+
         if (string.Equals(bg.Type, "transparent", StringComparison.OrdinalIgnoreCase)) return;
 
         var c = SKColor.Parse(bg.Color).WithAlpha((byte)(Math.Clamp(bg.Alpha, 0f, 1f) * 255));
