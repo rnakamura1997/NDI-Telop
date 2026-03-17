@@ -9,6 +9,12 @@ namespace NdiTelop.Services;
 public class RenderService : IRenderService
 {
     private readonly AssetService _assetService = new();
+    private readonly ISettingsService? _settingsService;
+
+    public RenderService(ISettingsService? settingsService = null)
+    {
+        _settingsService = settingsService;
+    }
 
     public SKBitmap Render(Preset preset, int width, int height)
     {
@@ -100,8 +106,22 @@ public class RenderService : IRenderService
         return output;
     }
 
-    private static void DrawBackground(SKCanvas canvas, BackgroundStyle bg, int width, int height)
+    private void DrawBackground(SKCanvas canvas, BackgroundStyle bg, int width, int height)
     {
+        if (string.Equals(bg.Type, "image", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(bg.AssetPath))
+        {
+            var backgroundPath = ResolveAssetPath(bg.AssetPath);
+            if (File.Exists(backgroundPath))
+            {
+                using var image = SKBitmap.Decode(backgroundPath);
+                if (image != null)
+                {
+                    canvas.DrawBitmap(image, new SKRect(0, 0, width, height));
+                    return;
+                }
+            }
+        }
+
         if (string.Equals(bg.Type, "transparent", StringComparison.OrdinalIgnoreCase)) return;
 
         var c = SKColor.Parse(bg.Color).WithAlpha((byte)(Math.Clamp(bg.Alpha, 0f, 1f) * 255));
@@ -115,7 +135,7 @@ public class RenderService : IRenderService
         {
             if (!overlay.IsVisible || string.IsNullOrEmpty(overlay.Path)) continue;
 
-            var resolvedPath = _assetService.ResolvePath(overlay.Path);
+            var resolvedPath = ResolveAssetPath(overlay.Path);
             if (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath))
             {
                 Log.Warning("Overlay asset not found and skipped. Path={Path}", overlay.Path);
@@ -207,5 +227,26 @@ public class RenderService : IRenderService
         }
 
         return false;
+    }
+
+    private string ResolveAssetPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        if (Path.IsPathRooted(path))
+        {
+            return path;
+        }
+
+        var configuredAssetPath = _settingsService?.Settings.AssetPath;
+        if (!string.IsNullOrWhiteSpace(configuredAssetPath))
+        {
+            return Path.Combine(configuredAssetPath, path);
+        }
+
+        return _assetService.ResolvePath(path);
     }
 }
