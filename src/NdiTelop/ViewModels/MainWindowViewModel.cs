@@ -452,6 +452,29 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
+    public async Task DuplicateSelectedPresetAsync()
+    {
+        if (SelectedPreset == null)
+        {
+            Status = "No preset selected to duplicate.";
+            return;
+        }
+
+        var sourceId = SelectedPreset.Id;
+        var duplicated = await _presetService.DuplicatePresetAsync(sourceId);
+        if (duplicated == null)
+        {
+            Status = "Preset duplication failed.";
+            return;
+        }
+
+        SelectedPreset = duplicated;
+        OnPropertyChanged(nameof(Presets));
+        Status = $"Preset duplicated: {duplicated.Name}";
+        Log.Information("Preset duplicated. SourceId={SourceId}, NewId={PresetId}, Name={PresetName}", sourceId, duplicated.Id, duplicated.Name);
+    }
+
+    [RelayCommand]
     public async Task DeleteSelectedPresetAsync()
     {
         if (SelectedPreset != null)

@@ -135,6 +135,69 @@ public class PresetServiceTests : IDisposable
         Assert.Equal(firstPresetId, reloaded.Presets[1].Id);
     }
 
+
+    [Fact]
+    public async Task DuplicatePresetAsync_ShouldCloneAllSettings_AndAppendToEnd()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var source = new Preset
+        {
+            Id = "source",
+            Name = "My Preset",
+            AutoClearSeconds = 9,
+            Background = new BackgroundStyle { Type = "image", AssetPath = "assets/bg.png", Alpha = 0.75, Color = "#112233" },
+            Animation = new AnimationConfig { InType = "fade", OutType = "wipe", SpeedSeconds = 1.2f, Easing = "EaseInOut" },
+            TextLines =
+            {
+                new TextLine { Text = "Line 1", FontFamily = "Arial", FontSize = 56, Color = "#FFAA00" },
+                new TextLine { Text = "Line 2", FontFamily = "Meiryo", FontSize = 44, Color = "#00AACC" }
+            },
+            Overlays =
+            [
+                new OverlayItem { Path = "assets/ov1.png", X = 10, Y = 20, Width = 300, Height = 120, Opacity = 0.5, IsVisible = true },
+                new OverlayItem { Path = "assets/ov2.png", X = 30, Y = 40, Width = 320, Height = 140, Opacity = 0.9, IsVisible = false }
+            ]
+        };
+
+        await service.SavePresetAsync(source);
+
+        var duplicated = await service.DuplicatePresetAsync(source.Id);
+
+        Assert.NotNull(duplicated);
+        Assert.NotEqual(source.Id, duplicated!.Id);
+        Assert.Equal("My Preset (Copy)", duplicated.Name);
+        Assert.Equal(source.AutoClearSeconds, duplicated.AutoClearSeconds);
+        Assert.Equal(source.Background.Type, duplicated.Background.Type);
+        Assert.Equal(source.Background.AssetPath, duplicated.Background.AssetPath);
+        Assert.Equal(source.Background.Alpha, duplicated.Background.Alpha);
+        Assert.Equal(source.Animation.InType, duplicated.Animation.InType);
+        Assert.Equal(source.Animation.OutType, duplicated.Animation.OutType);
+        Assert.Equal(source.Animation.SpeedSeconds, duplicated.Animation.SpeedSeconds);
+        Assert.Equal(source.Animation.Easing, duplicated.Animation.Easing);
+        Assert.Equal(source.TextLines.Select(t => t.Text), duplicated.TextLines.Select(t => t.Text));
+        Assert.Equal(source.Overlays.Select(o => o.Path), duplicated.Overlays.Select(o => o.Path));
+        Assert.Equal(duplicated.Id, service.Presets.Last().Id);
+        Assert.True(File.Exists(_testUserPresetPath));
+    }
+
+    [Fact]
+    public async Task DuplicatePresetAsync_ShouldAddIncrementalCopySuffix_WhenNameAlreadyExists()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var source = new Preset { Id = "source", Name = "Preset A" };
+        await service.SavePresetAsync(source);
+        await service.DuplicatePresetAsync(source.Id);
+
+        var secondCopy = await service.DuplicatePresetAsync(source.Id);
+
+        Assert.NotNull(secondCopy);
+        Assert.Equal("Preset A (Copy) 2", secondCopy!.Name);
+    }
+
     [Fact]
     public async Task ExportPresetAsync_ShouldCreateSchemaBasedJsonFile()
     {

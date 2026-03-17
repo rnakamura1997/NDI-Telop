@@ -168,6 +168,48 @@ public class PresetService : IPresetService
     }
 
 
+
+    public async Task<Preset?> DuplicatePresetAsync(string presetId)
+    {
+        var source = _presets.FirstOrDefault(p => p.Id == presetId);
+        if (source == null)
+        {
+            return null;
+        }
+
+        var duplicate = JsonSerializer.Deserialize<Preset>(JsonSerializer.Serialize(source, _jsonOptions), _jsonOptions);
+        if (duplicate == null)
+        {
+            return null;
+        }
+
+        duplicate.Id = Guid.NewGuid().ToString("N");
+        duplicate.Name = BuildCopyName(source.Name);
+        duplicate.SortOrder = _presets.Count;
+
+        _presets.Add(duplicate);
+        ApplySortOrder();
+        await _storage.SaveToFileAsync(_userPresetPath, _presets.ToList());
+
+        return duplicate;
+    }
+
+    private string BuildCopyName(string baseName)
+    {
+        var sourceName = string.IsNullOrWhiteSpace(baseName) ? "Preset" : baseName;
+        var suffix = " (Copy)";
+        var candidate = sourceName + suffix;
+        var index = 2;
+
+        while (_presets.Any(p => string.Equals(p.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+        {
+            candidate = $"{sourceName}{suffix} {index}";
+            index++;
+        }
+
+        return candidate;
+    }
+
     public async Task MovePresetAsync(string presetId, int targetIndex)
     {
         var currentIndex = _presets.ToList().FindIndex(p => p.Id == presetId);

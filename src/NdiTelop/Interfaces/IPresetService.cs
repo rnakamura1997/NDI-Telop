@@ -14,4 +14,5 @@ public interface IPresetService
     Task ExportPresetsAsync(string filePath, IReadOnlyList<string> presetIds);
     Task<int> ImportPresetsAsync(string filePath);
     Task MovePresetAsync(string presetId, int targetIndex);
+    Task<Preset?> DuplicatePresetAsync(string presetId);
 }
