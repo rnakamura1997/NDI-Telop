@@ -133,6 +133,31 @@ public class WebApiService : IWebApiService
                 return;
             }
 
+            if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/api/status/ndi", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { status = _coordinator.GetNdiOutputStatus() });
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/api/settings/basic", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, _coordinator.GetBasicSettings());
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Post.Method && path.Equals("/api/program/clear", StringComparison.OrdinalIgnoreCase))
+            {
+                var cleared = await _coordinator.ClearProgramAsync();
+                if (!cleared)
+                {
+                    await WriteJsonAsync(context.Response, HttpStatusCode.NotFound, new { message = "Program output is not available." });
+                    return;
+                }
+
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "Program output cleared." });
+                return;
+            }
+
             if (request.HttpMethod == HttpMethod.Post.Method && path.StartsWith("/api/presets/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/activate", StringComparison.OrdinalIgnoreCase))
             {
                 var id = path["/api/presets/".Length..^"/activate".Length].Trim('/');

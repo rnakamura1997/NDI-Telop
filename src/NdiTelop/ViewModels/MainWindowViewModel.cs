@@ -232,6 +232,9 @@ public partial class MainWindowViewModel : ObservableObject
         if (_externalControlCoordinator != null)
         {
             _externalControlCoordinator.ShowPresetHandler = preset => ShowPresetAsync(preset);
+            _externalControlCoordinator.ClearProgramHandler = ClearProgram;
+            _externalControlCoordinator.GetNdiOutputStatusHandler = () => NdiOutputStatus;
+            _externalControlCoordinator.GetBasicSettingsHandler = CreateExternalBasicSettings;
         }
 
         if (_hotkeyService != null)
@@ -772,6 +775,20 @@ public partial class MainWindowViewModel : ObservableObject
             ResolutionHeight = source.ResolutionHeight,
             FrameRateN = source.FrameRateN,
             FrameRateD = source.FrameRateD
+        };
+    }
+
+    private ExternalBasicSettings CreateExternalBasicSettings()
+    {
+        return new ExternalBasicSettings
+        {
+            NdiSourceName = NdiConfig.SourceName,
+            ResolutionWidth = NdiConfig.ResolutionWidth,
+            ResolutionHeight = NdiConfig.ResolutionHeight,
+            FrameRateN = NdiConfig.FrameRateN,
+            FrameRateD = NdiConfig.FrameRateD,
+            WebApiPort = _settingsService.Settings.WebApiPort,
+            OscPort = _settingsService.Settings.OscPort
         };
     }
 
