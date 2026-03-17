@@ -13,6 +13,8 @@ using SkiaSharp;
 using System.ComponentModel;
 using NdiTelop.Logging;
 using Serilog;
+using Serilog.Events;
+using System.IO;
 
 namespace NdiTelop.ViewModels;
 
@@ -76,11 +78,35 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isPreviewActive;
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
-    public ObservableCollection<string> RecentLogs => AppLogger.InMemorySink.RecentLogs;
+    public ObservableCollection<RecentLogEntry> FilteredLogs { get; } = [];
     public ObservableCollection<AssetItem> AssetItems { get; } = new();
 
     [ObservableProperty]
     private AssetItem? _selectedAsset;
+
+    [ObservableProperty]
+    private bool _showDebugLogs = true;
+
+    [ObservableProperty]
+    private bool _showInformationLogs = true;
+
+    [ObservableProperty]
+    private bool _showWarningLogs = true;
+
+    [ObservableProperty]
+    private bool _showErrorLogs = true;
+
+    [ObservableProperty]
+    private bool _showFatalLogs = true;
+
+    [ObservableProperty]
+    private string _logKeyword = string.Empty;
+
+    [ObservableProperty]
+    private bool _autoScrollLogs = true;
+
+    [ObservableProperty]
+    private bool _shouldScrollLogsToEnd;
 
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
@@ -248,7 +274,78 @@ public partial class MainWindowViewModel : ObservableObject
             _hotkeyService.HotkeyPressed += HandleHotkeyPressed;
         }
 
+        AppLogger.InMemorySink.RecentLogs.CollectionChanged += (_, _) => RefreshFilteredLogs();
+        RefreshFilteredLogs();
+
         RefreshNdiOutputStatus("初期状態");
+    }
+
+    partial void OnShowDebugLogsChanged(bool value) => RefreshFilteredLogs();
+    partial void OnShowInformationLogsChanged(bool value) => RefreshFilteredLogs();
+    partial void OnShowWarningLogsChanged(bool value) => RefreshFilteredLogs();
+    partial void OnShowErrorLogsChanged(bool value) => RefreshFilteredLogs();
+    partial void OnShowFatalLogsChanged(bool value) => RefreshFilteredLogs();
+    partial void OnLogKeywordChanged(string value) => RefreshFilteredLogs();
+
+    [RelayCommand]
+    private void ClearLogKeyword()
+    {
+        LogKeyword = string.Empty;
+    }
+
+    [RelayCommand]
+    private async Task ExportVisibleLogsAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var content = string.Join(Environment.NewLine, FilteredLogs.Select(log => log.Formatted));
+            await File.WriteAllTextAsync(filePath, content);
+            Status = $"Logs exported: {filePath}";
+            Log.Information("Filtered logs exported. Path={Path}, Count={Count}", filePath, FilteredLogs.Count);
+        }
+        catch (Exception ex)
+        {
+            Status = $"Log export failed: {ex.Message}";
+            Log.Error(ex, "Failed to export filtered logs.");
+        }
+    }
+
+    private void RefreshFilteredLogs()
+    {
+        var keyword = LogKeyword?.Trim();
+
+        var logs = AppLogger.InMemorySink.RecentLogs.Where(log =>
+            IsLevelVisible(log.Level) &&
+            (string.IsNullOrEmpty(keyword) || log.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase)));
+
+        FilteredLogs.Clear();
+        foreach (var entry in logs)
+        {
+            FilteredLogs.Add(entry);
+        }
+
+        if (AutoScrollLogs)
+        {
+            ShouldScrollLogsToEnd = !ShouldScrollLogsToEnd;
+        }
+    }
+
+    private bool IsLevelVisible(LogEventLevel level)
+    {
+        return level switch
+        {
+            LogEventLevel.Debug => ShowDebugLogs,
+            LogEventLevel.Information => ShowInformationLogs,
+            LogEventLevel.Warning => ShowWarningLogs,
+            LogEventLevel.Error => ShowErrorLogs,
+            LogEventLevel.Fatal => ShowFatalLogs,
+            _ => true
+        };
     }
 
     [RelayCommand]
@@ -412,6 +509,16 @@ public partial class MainWindowViewModel : ObservableObject
             NdiConfig = CloneNdiConfig(_settingsService.Settings.Ndi);
             ConfigureAssetService(_settingsService.Settings.AssetPath);
             RefreshAssets();
+
+            ShowDebugLogs = _settingsService.Settings.LogViewer.ShowDebug;
+            ShowInformationLogs = _settingsService.Settings.LogViewer.ShowInformation;
+            ShowWarningLogs = _settingsService.Settings.LogViewer.ShowWarning;
+            ShowErrorLogs = _settingsService.Settings.LogViewer.ShowError;
+            ShowFatalLogs = _settingsService.Settings.LogViewer.ShowFatal;
+            LogKeyword = _settingsService.Settings.LogViewer.Keyword;
+            AutoScrollLogs = _settingsService.Settings.LogViewer.AutoScroll;
+            RefreshFilteredLogs();
+
             Status = "App settings loaded.";
             Log.Information("Application settings loaded.");
         }
@@ -428,6 +535,13 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             _settingsService.Settings.Ndi = CloneNdiConfig(NdiConfig);
+            _settingsService.Settings.LogViewer.ShowDebug = ShowDebugLogs;
+            _settingsService.Settings.LogViewer.ShowInformation = ShowInformationLogs;
+            _settingsService.Settings.LogViewer.ShowWarning = ShowWarningLogs;
+            _settingsService.Settings.LogViewer.ShowError = ShowErrorLogs;
+            _settingsService.Settings.LogViewer.ShowFatal = ShowFatalLogs;
+            _settingsService.Settings.LogViewer.Keyword = LogKeyword;
+            _settingsService.Settings.LogViewer.AutoScroll = AutoScrollLogs;
             await _settingsService.SaveAsync();
             Status = "App settings saved.";
             Log.Information("Application settings saved.");

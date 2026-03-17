@@ -15,6 +15,8 @@ public class AppSettings
 
     public OutputSettings Output { get; set; } = new();
 
+    public LogViewerSettings LogViewer { get; set; } = new();
+
     [JsonIgnore]
     public int HttpPort
     {

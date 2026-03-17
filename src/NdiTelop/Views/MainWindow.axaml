@@ -157,13 +157,31 @@
         </StackPanel>
         <TextBlock Text="{Binding Status}" Foreground="White" FontWeight="SemiBold" />
         <TextBlock Text="{Binding AutoClearStatusText}" Foreground="#D0D0D0" FontSize="11" />
-        <ItemsControl ItemsSource="{Binding RecentLogs}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding}" Foreground="#CFCFCF" FontSize="11" TextTrimming="CharacterEllipsis" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <CheckBox Content="Debug" IsChecked="{Binding ShowDebugLogs}" Foreground="#D0D0D0" />
+          <CheckBox Content="Info" IsChecked="{Binding ShowInformationLogs}" Foreground="#D0D0D0" />
+          <CheckBox Content="Warn" IsChecked="{Binding ShowWarningLogs}" Foreground="#D0D0D0" />
+          <CheckBox Content="Error" IsChecked="{Binding ShowErrorLogs}" Foreground="#D0D0D0" />
+          <CheckBox Content="Fatal" IsChecked="{Binding ShowFatalLogs}" Foreground="#D0D0D0" />
+          <CheckBox Content="Auto Scroll" IsChecked="{Binding AutoScrollLogs}" Foreground="#D0D0D0" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBox Width="260" Text="{Binding LogKeyword}" Watermark="Search logs" />
+          <Button Content="Clear" Command="{Binding ClearLogKeywordCommand}" />
+          <Button Content="Export Logs" Click="ExportLogsButton_OnClick" />
+        </StackPanel>
+
+        <ScrollViewer x:Name="LogScrollViewer" Height="120" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding FilteredLogs}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Formatted}" Foreground="#CFCFCF" FontSize="11" TextTrimming="CharacterEllipsis" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </StackPanel>
     </Border>
   </Grid>

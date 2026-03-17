@@ -82,4 +82,31 @@ public class SettingsWindowViewModelTests
             s.DeckLinkDeviceIndex == 2));
     }
 
+    [Fact]
+    public async Task SaveAsync_ShouldPersistLogViewerSettings()
+    {
+        var settings = new AppSettings();
+        var settingsService = Substitute.For<ISettingsService>();
+        settingsService.Settings.Returns(settings);
+
+        var vm = new SettingsWindowViewModel(settingsService)
+        {
+            ShowDebugLogs = false,
+            ShowInformationLogs = true,
+            ShowWarningLogs = false,
+            ShowErrorLogs = true,
+            ShowFatalLogs = false,
+            LogKeyword = "error",
+            AutoScrollLogs = false
+        };
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.False(settings.LogViewer.ShowDebug);
+        Assert.False(settings.LogViewer.ShowWarning);
+        Assert.False(settings.LogViewer.ShowFatal);
+        Assert.Equal("error", settings.LogViewer.Keyword);
+        Assert.False(settings.LogViewer.AutoScroll);
+    }
+
 }

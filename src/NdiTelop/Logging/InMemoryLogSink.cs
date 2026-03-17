@@ -9,29 +9,34 @@ public class InMemoryLogSink : ILogEventSink
 {
     private readonly int _maxEntries;
 
-    public ObservableCollection<string> RecentLogs { get; } = [];
+    public ObservableCollection<RecentLogEntry> RecentLogs { get; } = [];
 
-    public InMemoryLogSink(int maxEntries = 8)
+    public InMemoryLogSink(int maxEntries = 200)
     {
         _maxEntries = maxEntries;
     }
 
     public void Emit(LogEvent logEvent)
     {
-        var message = $"[{logEvent.Timestamp:HH:mm:ss}] {logEvent.Level}: {logEvent.RenderMessage()}";
+        var entry = new RecentLogEntry
+        {
+            Timestamp = logEvent.Timestamp,
+            Level = logEvent.Level,
+            Message = logEvent.RenderMessage()
+        };
 
         if (Dispatcher.UIThread.CheckAccess())
         {
-            AddMessage(message);
+            AddMessage(entry);
             return;
         }
 
-        Dispatcher.UIThread.Post(() => AddMessage(message));
+        Dispatcher.UIThread.Post(() => AddMessage(entry));
     }
 
-    private void AddMessage(string message)
+    private void AddMessage(RecentLogEntry entry)
     {
-        RecentLogs.Add(message);
+        RecentLogs.Add(entry);
         while (RecentLogs.Count > _maxEntries)
         {
             RecentLogs.RemoveAt(0);

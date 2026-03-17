@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NdiTelop.Models;
 using NdiTelop.ViewModels;
 using System.Linq;
+using System.Collections.Specialized;
 using System.Threading.Tasks;
 using Serilog;
 
@@ -34,8 +36,40 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel viewModel)
             {
                 viewModel.LoadPresetsAsync().FireAndForget();
+                viewModel.PropertyChanged += ViewModel_PropertyChanged;
+                viewModel.FilteredLogs.CollectionChanged += FilteredLogs_CollectionChanged;
             }
         };
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainWindowViewModel.ShouldScrollLogsToEnd) && viewModel.AutoScrollLogs)
+        {
+            ScrollLogsToBottom();
+        }
+    }
+
+    private void FilteredLogs_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel && viewModel.AutoScrollLogs)
+        {
+            ScrollLogsToBottom();
+        }
+    }
+
+    private void ScrollLogsToBottom()
+    {
+        var logScrollViewer = this.FindControl<ScrollViewer>("LogScrollViewer");
+        if (logScrollViewer != null)
+        {
+            logScrollViewer.Offset = new Vector(logScrollViewer.Offset.X, double.MaxValue);
+        }
     }
 
 
@@ -278,6 +312,35 @@ public partial class MainWindow : Window
 
         await viewModel.ImportOverlayImageAsync(selectedFile.Path.LocalPath);
     }
+
+    private async void ExportLogsButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "ログをエクスポート",
+            SuggestedFileName = $"nditelop_logs_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Text Files")
+                {
+                    Patterns = ["*.txt"]
+                }
+            ]
+        });
+
+        if (file == null)
+        {
+            return;
+        }
+
+        await viewModel.ExportVisibleLogsCommand.ExecuteAsync(file.Path.LocalPath);
+    }
+
 }
 
 // FireAndForget拡張メソッド (Taskを非同期で実行し、結果を待たない)
