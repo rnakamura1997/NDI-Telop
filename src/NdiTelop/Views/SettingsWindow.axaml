@@ -4,13 +4,13 @@
         xmlns:model="using:NdiTelop.Models"
         x:Class="NdiTelop.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
-        Width="700" Height="920"
+        Width="700" Height="980"
         Title="設定">
   <Design.DataContext>
     <vm:SettingsWindowViewModel />
   </Design.DataContext>
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
     <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="NDI設定" FontSize="16" FontWeight="Bold" Margin="0,0,0,4" />
 
     <TextBlock Grid.Row="1" Grid.Column="0" Text="Source Name" VerticalAlignment="Center" />
@@ -65,8 +65,6 @@
       <TextBox Text="{Binding AssetPath}" />
     </StackPanel>
 
-
-
     <Separator Grid.Row="12" Grid.ColumnSpan="2" Margin="0,6" />
     <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="テーマ設定" FontSize="16" FontWeight="Bold" />
 
@@ -80,7 +78,6 @@
       <TextBlock Grid.Row="1" Grid.Column="0" Text="アクセントカラー" VerticalAlignment="Center" />
       <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AccentColor}" Watermark="#FF0A84FF" />
     </Grid>
-
 
     <Separator Grid.Row="15" Grid.ColumnSpan="2" Margin="0,6" />
     <TextBlock Grid.Row="16" Grid.ColumnSpan="2" Text="出力バックエンド設定" FontSize="16" FontWeight="Bold" />
@@ -101,8 +98,28 @@
       <TextBox Grid.Row="2" Grid.Column="1" Width="140" HorizontalAlignment="Left" Text="{Binding DeckLinkDeviceIndex}" />
     </Grid>
 
-    <TextBlock Grid.Row="18" Grid.ColumnSpan="2" Text="{Binding Status}" />
-    <StackPanel Grid.Row="19" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+    <Separator Grid.Row="18" Grid.ColumnSpan="2" Margin="0,6" />
+    <TextBlock Grid.Row="19" Grid.ColumnSpan="2" Text="ログビューア設定" FontSize="16" FontWeight="Bold" />
+
+    <Grid Grid.Row="20" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="ログレベル表示" VerticalAlignment="Center" />
+      <WrapPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" ItemHeight="30" ItemWidth="110">
+        <CheckBox Content="Debug" IsChecked="{Binding ShowDebugLogs}" />
+        <CheckBox Content="Information" IsChecked="{Binding ShowInformationLogs}" />
+        <CheckBox Content="Warning" IsChecked="{Binding ShowWarningLogs}" />
+        <CheckBox Content="Error" IsChecked="{Binding ShowErrorLogs}" />
+        <CheckBox Content="Fatal" IsChecked="{Binding ShowFatalLogs}" />
+      </WrapPanel>
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="キーワード" VerticalAlignment="Center" />
+      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LogKeyword}" Watermark="ログ検索キーワード" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="自動スクロール" VerticalAlignment="Center" />
+      <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding AutoScrollLogs}" Content="新規ログ追加時に最下部へスクロール" />
+    </Grid>
+
+    <TextBlock Grid.Row="21" Grid.ColumnSpan="2" Text="{Binding Status}" />
+    <StackPanel Grid.Row="22" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
       <Button Content="読込" Command="{Binding LoadCommand}" Width="96" />
       <Button Content="保存" Command="{Binding SaveCommand}" Width="96" />
     </StackPanel>

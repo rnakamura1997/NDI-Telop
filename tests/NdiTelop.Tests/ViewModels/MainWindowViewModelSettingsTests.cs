@@ -32,6 +32,16 @@ public class MainWindowViewModelSettingsTests
                 ResolutionHeight = 720,
                 FrameRateN = 60000,
                 FrameRateD = 1001
+            },
+            LogViewer = new LogViewerSettings
+            {
+                ShowDebug = false,
+                ShowInformation = true,
+                ShowWarning = false,
+                ShowError = true,
+                ShowFatal = false,
+                Keyword = "ndi",
+                AutoScroll = false
             }
         });
 
@@ -43,6 +53,10 @@ public class MainWindowViewModelSettingsTests
         Assert.Equal(1280, vm.NdiConfig.ResolutionWidth);
         Assert.Equal(720, vm.NdiConfig.ResolutionHeight);
         Assert.Equal("App settings loaded.", vm.Status);
+        Assert.False(vm.ShowDebugLogs);
+        Assert.False(vm.ShowWarningLogs);
+        Assert.Equal("ndi", vm.LogKeyword);
+        Assert.False(vm.AutoScrollLogs);
         await settingsService.Received(1).LoadAsync();
     }
 
@@ -62,12 +76,23 @@ public class MainWindowViewModelSettingsTests
             FrameRateD = 1001
         };
 
+        vm.ShowDebugLogs = false;
+        vm.ShowWarningLogs = false;
+        vm.ShowFatalLogs = false;
+        vm.LogKeyword = "warn";
+        vm.AutoScrollLogs = false;
+
         await vm.SaveAppSettingsCommand.ExecuteAsync(null);
 
         await settingsService.Received(1).SaveAsync();
         Assert.Equal("To Save", settings.Ndi.SourceName);
         Assert.Equal(1920, settings.Ndi.ResolutionWidth);
         Assert.Equal("App settings saved.", vm.Status);
+        Assert.False(settings.LogViewer.ShowDebug);
+        Assert.False(settings.LogViewer.ShowWarning);
+        Assert.False(settings.LogViewer.ShowFatal);
+        Assert.Equal("warn", settings.LogViewer.Keyword);
+        Assert.False(settings.LogViewer.AutoScroll);
     }
 
     [Fact]

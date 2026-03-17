@@ -63,6 +63,28 @@ public partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private int _deckLinkDeviceIndex;
 
+
+    [ObservableProperty]
+    private bool _showDebugLogs = true;
+
+    [ObservableProperty]
+    private bool _showInformationLogs = true;
+
+    [ObservableProperty]
+    private bool _showWarningLogs = true;
+
+    [ObservableProperty]
+    private bool _showErrorLogs = true;
+
+    [ObservableProperty]
+    private bool _showFatalLogs = true;
+
+    [ObservableProperty]
+    private string _logKeyword = string.Empty;
+
+    [ObservableProperty]
+    private bool _autoScrollLogs = true;
+
     public IReadOnlyList<string> AvailableDeckLinkDevices => _outputService?.GetAvailableDeckLinkDevices() ?? [];
 
     public SettingsWindowViewModel(
@@ -100,6 +122,15 @@ public partial class SettingsWindowViewModel : ObservableObject
             SelectedOutputBackend = _settingsService.Settings.Output.SelectedBackend;
             SpoutSenderName = _settingsService.Settings.Output.SpoutSenderName;
             DeckLinkDeviceIndex = _settingsService.Settings.Output.DeckLinkDeviceIndex;
+
+            ShowDebugLogs = _settingsService.Settings.LogViewer.ShowDebug;
+            ShowInformationLogs = _settingsService.Settings.LogViewer.ShowInformation;
+            ShowWarningLogs = _settingsService.Settings.LogViewer.ShowWarning;
+            ShowErrorLogs = _settingsService.Settings.LogViewer.ShowError;
+            ShowFatalLogs = _settingsService.Settings.LogViewer.ShowFatal;
+            LogKeyword = _settingsService.Settings.LogViewer.Keyword;
+            AutoScrollLogs = _settingsService.Settings.LogViewer.AutoScroll;
+
             Status = "Settings loaded.";
         }
         catch (Exception ex)
@@ -129,6 +160,14 @@ public partial class SettingsWindowViewModel : ObservableObject
             _settingsService.Settings.Output.SelectedBackend = SelectedOutputBackend;
             _settingsService.Settings.Output.SpoutSenderName = SpoutSenderName;
             _settingsService.Settings.Output.DeckLinkDeviceIndex = DeckLinkDeviceIndex;
+
+            _settingsService.Settings.LogViewer.ShowDebug = ShowDebugLogs;
+            _settingsService.Settings.LogViewer.ShowInformation = ShowInformationLogs;
+            _settingsService.Settings.LogViewer.ShowWarning = ShowWarningLogs;
+            _settingsService.Settings.LogViewer.ShowError = ShowErrorLogs;
+            _settingsService.Settings.LogViewer.ShowFatal = ShowFatalLogs;
+            _settingsService.Settings.LogViewer.Keyword = LogKeyword;
+            _settingsService.Settings.LogViewer.AutoScroll = AutoScrollLogs;
 
             _themeService?.ApplyTheme(_settingsService.Settings.Theme);
 

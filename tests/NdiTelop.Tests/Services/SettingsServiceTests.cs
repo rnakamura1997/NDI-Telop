@@ -120,4 +120,28 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(3, loaded.Settings.Output.DeckLinkDeviceIndex);
     }
 
+    [Fact]
+    public async Task SaveAsync_ShouldPersistLogViewerSettings()
+    {
+        var service = new SettingsService(_settingsPath);
+        service.Settings.LogViewer.ShowDebug = false;
+        service.Settings.LogViewer.ShowInformation = true;
+        service.Settings.LogViewer.ShowWarning = false;
+        service.Settings.LogViewer.ShowError = true;
+        service.Settings.LogViewer.ShowFatal = false;
+        service.Settings.LogViewer.Keyword = "ndi";
+        service.Settings.LogViewer.AutoScroll = false;
+
+        await service.SaveAsync();
+
+        var loaded = new SettingsService(_settingsPath);
+        await loaded.LoadAsync();
+
+        Assert.False(loaded.Settings.LogViewer.ShowDebug);
+        Assert.False(loaded.Settings.LogViewer.ShowWarning);
+        Assert.False(loaded.Settings.LogViewer.ShowFatal);
+        Assert.Equal("ndi", loaded.Settings.LogViewer.Keyword);
+        Assert.False(loaded.Settings.LogViewer.AutoScroll);
+    }
+
 }
