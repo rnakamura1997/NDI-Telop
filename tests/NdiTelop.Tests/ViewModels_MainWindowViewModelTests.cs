@@ -59,6 +59,27 @@ public class ViewModels_MainWindowViewModelTests
         Assert.Equal("Preset order updated.", vm.Status);
     }
 
+
+    [Fact]
+    public async Task DuplicateSelectedPresetAsync_ShouldSelectDuplicatedPreset()
+    {
+        var source = new Preset { Id = "p1", Name = "Preset1" };
+        var duplicate = new Preset { Id = "p2", Name = "Preset1 (Copy)" };
+
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset> { source, duplicate });
+        presetService.DuplicatePresetAsync("p1").Returns(duplicate);
+
+        var vm = CreateViewModel(new List<Preset> { source, duplicate }, presetService);
+        vm.SelectedPreset = source;
+
+        await vm.DuplicateSelectedPresetCommand.ExecuteAsync(null);
+
+        await presetService.Received(1).DuplicatePresetAsync("p1");
+        Assert.Same(duplicate, vm.SelectedPreset);
+        Assert.Equal("Preset duplicated: Preset1 (Copy)", vm.Status);
+    }
+
     [Fact]
     public async Task Take_ShouldApplyPreviewPresetToProgram_WhenProgramIsActive()
     {
