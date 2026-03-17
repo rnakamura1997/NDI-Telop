@@ -23,7 +23,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly INdiService _ndiService;
     private readonly ISettingsService _settingsService;
     private readonly ExternalControlCoordinator? _externalControlCoordinator;
-    private readonly AssetService _assetService;
+    private AssetService _assetService;
     private readonly HotkeyService? _hotkeyService;
 
     [ObservableProperty]
@@ -77,6 +77,11 @@ public partial class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
     public ObservableCollection<string> RecentLogs => AppLogger.InMemorySink.RecentLogs;
+    public ObservableCollection<AssetItem> AssetItems { get; } = new();
+
+    [ObservableProperty]
+    private AssetItem? _selectedAsset;
+
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
         "fade",
@@ -210,6 +215,7 @@ public partial class MainWindowViewModel : ObservableObject
         _settingsService = settingsService;
         _externalControlCoordinator = externalControlCoordinator;
         _assetService = assetService ?? new AssetService();
+        _assetService.AssetsChanged += AssetService_AssetsChanged;
         _hotkeyService = hotkeyService;
 
         _ndiSendTimer = new DispatcherTimer();
@@ -404,6 +410,8 @@ public partial class MainWindowViewModel : ObservableObject
         {
             await _settingsService.LoadAsync();
             NdiConfig = CloneNdiConfig(_settingsService.Settings.Ndi);
+            ConfigureAssetService(_settingsService.Settings.AssetPath);
+            RefreshAssets();
             Status = "App settings loaded.";
             Log.Information("Application settings loaded.");
         }
@@ -557,6 +565,77 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         return Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    public void RefreshAssets()
+    {
+        AssetItems.Clear();
+        foreach (var asset in _assetService.GetAssets())
+        {
+            AssetItems.Add(asset);
+        }
+
+        Status = $"Assets refreshed: {AssetItems.Count}";
+    }
+
+    [RelayCommand]
+    public void SetSelectedAssetAsOverlay()
+    {
+        if (SelectedPreset == null || SelectedAsset == null)
+        {
+            return;
+        }
+
+        SelectedPreset.Overlays.Add(new OverlayItem
+        {
+            Path = SelectedAsset.RelativePath,
+            X = 0,
+            Y = 0,
+            Width = 0,
+            Height = 0,
+            Opacity = 1.0,
+            IsVisible = true
+        });
+
+        Status = $"Overlay set: {SelectedAsset.FileName}";
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    [RelayCommand]
+    public void SetSelectedAssetAsBackground()
+    {
+        if (SelectedPreset == null || SelectedAsset == null)
+        {
+            return;
+        }
+
+        SelectedPreset.Background.Type = "image";
+        SelectedPreset.Background.AssetPath = SelectedAsset.RelativePath;
+        SelectedPreset.Background.Alpha = 1.0;
+        Status = $"Background set: {SelectedAsset.FileName}";
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private void ConfigureAssetService(string assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return;
+        }
+
+        _assetService.AssetsChanged -= AssetService_AssetsChanged;
+        _assetService.Dispose();
+        _assetService = new AssetService(assetPath);
+        _assetService.AssetsChanged += AssetService_AssetsChanged;
+    }
+
+    private void AssetService_AssetsChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            RefreshAssets();
+        });
     }
 
     public IAsyncRelayCommand<Preset> ShowPresetCommand { get; }

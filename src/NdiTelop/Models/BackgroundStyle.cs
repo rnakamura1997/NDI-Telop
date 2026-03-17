@@ -5,4 +5,5 @@ public class BackgroundStyle
     public string Type { get; set; } = "transparent";
     public string Color { get; set; } = "#000000";
     public double Alpha { get; set; }
+    public string AssetPath { get; set; } = string.Empty;
 }
