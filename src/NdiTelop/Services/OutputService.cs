@@ -15,7 +15,7 @@ public class OutputService : IOutputService
     public OutputService()
         : this(
             new NoOpOutputBackend("VirtualCamera"),
-            new NoOpOutputBackend("DeckLink"),
+            new DeckLinkOutputBackend(),
             new Spout2PocOutputBackend())
     {
     }
