@@ -62,6 +62,24 @@ public class ExternalControlServicesTests
             activatedId = p.Id;
             return Task.CompletedTask;
         };
+        coordinator.GetNdiOutputStatusHandler = () => "Active";
+        coordinator.GetBasicSettingsHandler = () => new ExternalBasicSettings
+        {
+            NdiSourceName = "NdiTelop-Test",
+            ResolutionWidth = 1280,
+            ResolutionHeight = 720,
+            FrameRateN = 60000,
+            FrameRateD = 1001,
+            WebApiPort = 5001,
+            OscPort = 9001
+        };
+
+        var cleared = false;
+        coordinator.ClearProgramHandler = () =>
+        {
+            cleared = true;
+            return Task.CompletedTask;
+        };
 
         var port = GetFreeTcpPort();
         var webApiService = new WebApiService(coordinator)
@@ -84,6 +102,21 @@ public class ExternalControlServicesTests
             var activateResponse = await client.PostAsync("/api/presets/preset-api/activate", null);
             Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
             Assert.Equal("preset-api", activatedId);
+
+            var ndiStatusResponse = await client.GetAsync("/api/status/ndi");
+            Assert.Equal(HttpStatusCode.OK, ndiStatusResponse.StatusCode);
+            var ndiStatus = await ndiStatusResponse.Content.ReadFromJsonAsync<NdiStatusResponse>();
+            Assert.Equal("Active", ndiStatus?.Status);
+
+            var settingsResponse = await client.GetAsync("/api/settings/basic");
+            Assert.Equal(HttpStatusCode.OK, settingsResponse.StatusCode);
+            var settings = await settingsResponse.Content.ReadFromJsonAsync<ExternalBasicSettings>();
+            Assert.Equal("NdiTelop-Test", settings?.NdiSourceName);
+            Assert.Equal(1280, settings?.ResolutionWidth);
+
+            var clearResponse = await client.PostAsync("/api/program/clear", null);
+            Assert.Equal(HttpStatusCode.OK, clearResponse.StatusCode);
+            Assert.True(cleared);
         }
         finally
         {
@@ -178,5 +211,10 @@ public class ExternalControlServicesTests
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class NdiStatusResponse
+    {
+        public string Status { get; set; } = string.Empty;
     }
 }
