@@ -43,6 +43,38 @@ public class ViewModels_MainWindowViewModelTests
     }
 
     [Fact]
+    public void PresetSearch_ShouldFilterPresetsByNameAndClearSelectionWhenNeeded()
+    {
+        var alpha = new Preset { Id = "p1", Name = "Alpha" };
+        var beta = new Preset { Id = "p2", Name = "Beta" };
+        var alphabet = new Preset { Id = "p3", Name = "Alphabet" };
+        var vm = CreateViewModel(new List<Preset> { alpha, beta, alphabet });
+        vm.SelectedPreset = beta;
+
+        vm.PresetSearchKeyword = "alp";
+
+        Assert.Equal(new[] { alpha, alphabet }, vm.FilteredPresets.ToArray());
+        Assert.Same(alpha, vm.SelectedPreset);
+
+        vm.ClearPresetSearchCommand.Execute(null);
+
+        Assert.Equal(3, vm.FilteredPresets.Count);
+        Assert.Same(alpha, vm.SelectedPreset);
+    }
+
+    [Fact]
+    public void PresetSearch_ShouldBeCaseInsensitive()
+    {
+        var preset = new Preset { Id = "p1", Name = "Breaking News" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+
+        vm.PresetSearchKeyword = "breaking";
+
+        Assert.Single(vm.FilteredPresets);
+        Assert.Same(preset, vm.FilteredPresets[0]);
+    }
+
+    [Fact]
     public async Task MovePresetAsync_ShouldDelegateToPresetService()
     {
         var presetService = Substitute.For<IPresetService>();

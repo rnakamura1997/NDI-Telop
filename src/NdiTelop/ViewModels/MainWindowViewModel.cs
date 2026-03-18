@@ -79,6 +79,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<string> AvailableFontFamilies { get; } = new ObservableCollection<string>();
     public ObservableCollection<RecentLogEntry> FilteredLogs { get; } = [];
+    public ObservableCollection<Preset> FilteredPresets { get; } = [];
     public ObservableCollection<AssetItem> AssetItems { get; } = new();
 
     [ObservableProperty]
@@ -101,6 +102,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string _logKeyword = string.Empty;
+
+    [ObservableProperty]
+    private string _presetSearchKeyword = string.Empty;
 
     [ObservableProperty]
     private bool _autoScrollLogs = true;
@@ -277,6 +281,13 @@ public partial class MainWindowViewModel : ObservableObject
         AppLogger.InMemorySink.RecentLogs.CollectionChanged += (_, _) => RefreshFilteredLogs();
         RefreshFilteredLogs();
 
+        if (_presetService.Presets is INotifyCollectionChanged presetCollection)
+        {
+            presetCollection.CollectionChanged += Presets_CollectionChanged;
+        }
+
+        RefreshFilteredPresets();
+
         RefreshNdiOutputStatus("初期状態");
     }
 
@@ -286,11 +297,18 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnShowErrorLogsChanged(bool value) => RefreshFilteredLogs();
     partial void OnShowFatalLogsChanged(bool value) => RefreshFilteredLogs();
     partial void OnLogKeywordChanged(string value) => RefreshFilteredLogs();
+    partial void OnPresetSearchKeywordChanged(string value) => RefreshFilteredPresets();
 
     [RelayCommand]
     private void ClearLogKeyword()
     {
         LogKeyword = string.Empty;
+    }
+
+    [RelayCommand]
+    private void ClearPresetSearch()
+    {
+        PresetSearchKeyword = string.Empty;
     }
 
     [RelayCommand]
@@ -335,6 +353,32 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    private void Presets_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RefreshFilteredPresets();
+    }
+
+    private void RefreshFilteredPresets()
+    {
+        var keyword = PresetSearchKeyword?.Trim();
+        var filtered = Presets.Where(p => string.IsNullOrWhiteSpace(keyword) || p.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+
+        FilteredPresets.Clear();
+        foreach (var preset in filtered)
+        {
+            FilteredPresets.Add(preset);
+        }
+
+        if (SelectedPreset != null && !FilteredPresets.Contains(SelectedPreset) && Presets.Count > 0)
+        {
+            SelectedPreset = FilteredPresets.FirstOrDefault();
+        }
+        else if (SelectedPreset == null && FilteredPresets.Count > 0)
+        {
+            SelectedPreset = FilteredPresets[0];
+        }
+    }
+
     private bool IsLevelVisible(LogEventLevel level)
     {
         return level switch
@@ -354,7 +398,8 @@ public partial class MainWindowViewModel : ObservableObject
         await LoadAppSettingsAsync();
         await _presetService.LoadPresetsAsync();
         _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
-        SelectedPreset = Presets.FirstOrDefault();
+        RefreshFilteredPresets();
+        SelectedPreset ??= FilteredPresets.FirstOrDefault();
         Status = $"Loaded {Presets.Count} presets.";
         Log.Information("Loaded presets count: {Count}", Presets.Count);
     }
@@ -448,6 +493,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         await _presetService.MovePresetAsync(presetId, targetIndex);
         OnPropertyChanged(nameof(Presets));
+        RefreshFilteredPresets();
         Status = "Preset order updated.";
     }
 
@@ -470,6 +516,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         SelectedPreset = duplicated;
         OnPropertyChanged(nameof(Presets));
+        RefreshFilteredPresets();
         Status = $"Preset duplicated: {duplicated.Name}";
         Log.Information("Preset duplicated. SourceId={SourceId}, NewId={PresetId}, Name={PresetName}", sourceId, duplicated.Id, duplicated.Name);
     }
@@ -482,6 +529,7 @@ public partial class MainWindowViewModel : ObservableObject
             var presetToDelete = SelectedPreset;
             SelectedPreset = null; // Clear selection before deleting
             await _presetService.DeletePresetAsync(presetToDelete.Id);
+            RefreshFilteredPresets();
             Status = $"Preset deleted: {presetToDelete.Name}";
             Log.Information("Preset deleted. Name={PresetName}, Id={PresetId}", presetToDelete.Name, presetToDelete.Id);
         }
@@ -517,7 +565,8 @@ public partial class MainWindowViewModel : ObservableObject
     public async Task ImportPresetsAsync(string filePath)
     {
         var importedCount = await _presetService.ImportPresetsAsync(filePath);
-        SelectedPreset ??= Presets.FirstOrDefault();
+        RefreshFilteredPresets();
+        SelectedPreset ??= FilteredPresets.FirstOrDefault();
         Status = importedCount > 0
             ? $"Imported {importedCount} presets."
             : "No presets were imported.";
