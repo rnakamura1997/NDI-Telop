@@ -12,6 +12,9 @@ public class PresetService : IPresetService
     private readonly PresetStorage _storage = new();
     private readonly string _userPresetPath;
     private readonly string _defaultPresetPath;
+
+    public string UserPresetPath => _userPresetPath;
+    public string DefaultPresetPath => _defaultPresetPath;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
@@ -124,6 +127,13 @@ public class PresetService : IPresetService
         ApplySortOrder();
         await _storage.SaveToFileAsync(_userPresetPath, _presets.ToList());
         return imported.Count;
+    }
+
+
+    public async Task SavePresetsSnapshotAsync()
+    {
+        ApplySortOrder();
+        await _storage.SaveToFileAsync(_userPresetPath, _presets.ToList());
     }
 
     private async Task ExportPresetsInternalAsync(string filePath, IReadOnlyList<Preset> presets)

@@ -55,17 +55,20 @@ public static class Program
 
         services.AddSingleton<INdiService, NdiService>();
         services.AddSingleton<IRenderService, RenderService>();
-        services.AddSingleton<IPresetService, PresetService>(provider =>
+        services.AddSingleton<PresetService>(provider =>
             new PresetService(
                 Path.Combine(AppContext.BaseDirectory, "data", "presets.json"),
                 Path.Combine(AppContext.BaseDirectory, "Assets", "DefaultPresets", "default_presets.json")
             ));
+        services.AddSingleton<IPresetService>(provider => provider.GetRequiredService<PresetService>());
         services.AddSingleton<ExternalControlCoordinator>();
         services.AddSingleton<ISetlistService, SetlistService>();
         services.AddSingleton<IWebApiService, WebApiService>();
         services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<IOutputService, OutputService>();
-        services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<SettingsService>();
+        services.AddSingleton<ISettingsService>(provider => provider.GetRequiredService<SettingsService>());
+        services.AddSingleton<BackupArchiveService>();
         services.AddSingleton<ThemeService>();
 
         var serviceProvider = services.BuildServiceProvider();

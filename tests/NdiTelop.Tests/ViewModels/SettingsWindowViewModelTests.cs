@@ -171,4 +171,93 @@ public class SettingsWindowViewModelTests
         Assert.Equal("Alt+0", vm.HotkeyBindings[^1].Shortcut);
     }
 
+
+    [Fact]
+    public async Task CreateBackupAsync_ShouldCreateArchiveAndUpdateStatus()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "NdiTelopVmBackupTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var settingsPath = Path.Combine(root, "data", "appsettings.json");
+            var presetPath = Path.Combine(root, "data", "presets.json");
+            var defaultPresetPath = Path.Combine(root, "Assets", "DefaultPresets", "default_presets.json");
+            var assetPath = Path.Combine(root, "data", "assets");
+            var backupPath = Path.Combine(root, "exports", "backup.zip");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(defaultPresetPath)!);
+            await File.WriteAllTextAsync(defaultPresetPath, "[]");
+            Directory.CreateDirectory(assetPath);
+            await File.WriteAllTextAsync(Path.Combine(assetPath, "image.png"), "asset");
+
+            var settingsService = new SettingsService(settingsPath);
+            settingsService.Settings.AssetPath = assetPath;
+            var presetService = new PresetService(presetPath, defaultPresetPath);
+            await presetService.LoadPresetsAsync();
+            await presetService.SavePresetAsync(new Preset { Id = "preset1", Name = "Preset 1" });
+            var backupService = new BackupArchiveService(settingsService, presetService);
+
+            var vm = new SettingsWindowViewModel(settingsService, backupArchiveService: backupService);
+
+            await vm.CreateBackupAsync(backupPath);
+
+            Assert.True(File.Exists(backupPath));
+            Assert.Equal($"Backup created: {Path.GetFileName(backupPath)}", vm.Status);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsync_ShouldReloadSettingsAndUpdateStatus()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "NdiTelopVmRestoreTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var defaultPresetPath = Path.Combine(root, "Assets", "DefaultPresets", "default_presets.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(defaultPresetPath)!);
+            await File.WriteAllTextAsync(defaultPresetPath, "[]");
+
+            var sourceSettings = new SettingsService(Path.Combine(root, "source", "appsettings.json"));
+            var sourcePresetService = new PresetService(Path.Combine(root, "source", "presets.json"), defaultPresetPath);
+            await sourcePresetService.LoadPresetsAsync();
+            await sourcePresetService.SavePresetAsync(new Preset { Id = "preset-source", Name = "Source Preset" });
+
+            var sourceAssetPath = Path.Combine(root, "source-assets");
+            Directory.CreateDirectory(sourceAssetPath);
+            await File.WriteAllTextAsync(Path.Combine(sourceAssetPath, "clip.mp4"), "video");
+            sourceSettings.Settings.AssetPath = sourceAssetPath;
+            sourceSettings.Settings.Ndi.SourceName = "Restored from Backup";
+
+            var backupPath = Path.Combine(root, "exports", "backup.zip");
+            var backupCreator = new BackupArchiveService(sourceSettings, sourcePresetService);
+            await backupCreator.CreateBackupAsync(backupPath);
+
+            var restoreSettings = new SettingsService(Path.Combine(root, "restore", "appsettings.json"));
+            var restorePresetService = new PresetService(Path.Combine(root, "restore", "presets.json"), defaultPresetPath);
+            await restorePresetService.LoadPresetsAsync();
+            var outputService = Substitute.For<IOutputService>();
+            var backupRestoreService = new BackupArchiveService(restoreSettings, restorePresetService);
+
+            var vm = new SettingsWindowViewModel(restoreSettings, outputService: outputService, backupArchiveService: backupRestoreService);
+
+            await vm.RestoreBackupAsync(backupPath);
+
+            Assert.Equal("Restored from Backup", restoreSettings.Settings.Ndi.SourceName);
+            await outputService.Received(1).ApplySettingsAsync(Arg.Any<OutputSettings>());
+            Assert.Equal($"Backup restored: {Path.GetFileName(backupPath)}", vm.Status);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
 }

@@ -7,6 +7,8 @@ namespace NdiTelop.Services;
 public class SettingsService : ISettingsService
 {
     private readonly string _settingsFilePath;
+
+    public string SettingsFilePath => _settingsFilePath;
     private readonly JsonSerializerOptions _options = new()
     {
         WriteIndented = true,

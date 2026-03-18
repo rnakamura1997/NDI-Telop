@@ -15,6 +15,7 @@ public partial class SettingsWindowViewModel : ObservableObject
     private readonly INdiService? _ndiService;
     private readonly ThemeService? _themeService;
     private readonly IOutputService? _outputService;
+    private readonly BackupArchiveService? _backupArchiveService;
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -95,13 +96,15 @@ public partial class SettingsWindowViewModel : ObservableObject
         HotkeyService? hotkeyService = null,
         INdiService? ndiService = null,
         ThemeService? themeService = null,
-        IOutputService? outputService = null)
+        IOutputService? outputService = null,
+        BackupArchiveService? backupArchiveService = null)
     {
         _settingsService = settingsService;
         _hotkeyService = hotkeyService;
         _ndiService = ndiService;
         _themeService = themeService;
         _outputService = outputService;
+        _backupArchiveService = backupArchiveService;
     }
 
     [RelayCommand]
@@ -141,6 +144,63 @@ public partial class SettingsWindowViewModel : ObservableObject
         {
             Status = $"Error loading settings: {ex.Message}";
             Log.Error(ex, "Failed to load application settings in SettingsWindow.");
+        }
+    }
+
+
+    public async Task CreateBackupAsync(string filePath)
+    {
+        if (_backupArchiveService == null)
+        {
+            Status = "Backup service is unavailable.";
+            return;
+        }
+
+        try
+        {
+            await SaveAsync();
+            await _backupArchiveService.CreateBackupAsync(filePath);
+            Status = $"Backup created: {Path.GetFileName(filePath)}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error creating backup: {ex.Message}";
+            Log.Error(ex, "Failed to create backup archive. Path={BackupPath}", filePath);
+        }
+    }
+
+    public async Task RestoreBackupAsync(string filePath)
+    {
+        if (_backupArchiveService == null)
+        {
+            Status = "Backup service is unavailable.";
+            return;
+        }
+
+        try
+        {
+            await _backupArchiveService.RestoreBackupAsync(filePath);
+            _themeService?.ApplyTheme(_settingsService.Settings.Theme);
+
+            if (_outputService != null)
+            {
+                await _outputService.ApplySettingsAsync(_settingsService.Settings.Output);
+            }
+
+            _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
+
+            if (_ndiService != null && _ndiService.IsInitialized)
+            {
+                await _ndiService.ReinitializeAsync(_settingsService.Settings.Ndi);
+            }
+
+            await LoadAsync();
+            Status = $"Backup restored: {Path.GetFileName(filePath)}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error restoring backup: {ex.Message}";
+            Log.Error(ex, "Failed to restore backup archive. Path={BackupPath}", filePath);
         }
     }
 
