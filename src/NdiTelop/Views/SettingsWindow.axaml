@@ -4,13 +4,13 @@
         xmlns:model="using:NdiTelop.Models"
         x:Class="NdiTelop.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
-        Width="760" Height="1080"
+        Width="760" Height="1180"
         Title="設定">
   <Design.DataContext>
     <vm:SettingsWindowViewModel />
   </Design.DataContext>
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
     <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="NDI設定" FontSize="16" FontWeight="Bold" Margin="0,0,0,4" />
 
     <TextBlock Grid.Row="1" Grid.Column="0" Text="Source Name" VerticalAlignment="Center" />
@@ -144,8 +144,25 @@
       <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding AutoScrollLogs}" Content="新規ログ追加時に最下部へスクロール" />
     </Grid>
 
-    <TextBlock Grid.Row="22" Grid.ColumnSpan="2" Text="{Binding Status}" />
-    <StackPanel Grid.Row="23" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+    <Separator Grid.Row="22" Grid.ColumnSpan="2" Margin="0,6" />
+    <TextBlock Grid.Row="23" Grid.ColumnSpan="2" Text="バックアップ / 復元" FontSize="16" FontWeight="Bold" />
+
+    <Grid Grid.Row="24" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="バックアップ" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="バックアップ作成" Width="140" Click="CreateBackupButton_OnClick" />
+        <TextBlock VerticalAlignment="Center" Text="設定・プリセット・アセットをzipに保存します。" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="復元" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="バックアップを復元" Width="140" Click="RestoreBackupButton_OnClick" />
+        <TextBlock VerticalAlignment="Center" Text="zipからアプリ状態をまとめて復元します。" />
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Grid.Row="25" Grid.ColumnSpan="2" Text="{Binding Status}" />
+    <StackPanel Grid.Row="26" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
       <Button Content="読込" Command="{Binding LoadCommand}" Width="96" />
       <Button Content="保存" Command="{Binding SaveCommand}" Width="96" />
     </StackPanel>
