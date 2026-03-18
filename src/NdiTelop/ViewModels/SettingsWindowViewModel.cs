@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NdiTelop.Interfaces;
@@ -85,6 +86,8 @@ public partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _autoScrollLogs = true;
 
+    public ObservableCollection<HotkeyBindingDisplayItem> HotkeyBindings { get; } = new();
+
     public IReadOnlyList<string> AvailableDeckLinkDevices => _outputService?.GetAvailableDeckLinkDevices() ?? [];
 
     public SettingsWindowViewModel(
@@ -117,6 +120,7 @@ public partial class SettingsWindowViewModel : ObservableObject
             Preset4Hotkey = _settingsService.Settings.Hotkeys.Preset4;
             Preset5Hotkey = _settingsService.Settings.Hotkeys.Preset5;
             ClearProgramHotkey = _settingsService.Settings.Hotkeys.ClearProgram;
+            RefreshHotkeyBindings(_settingsService.Settings.Hotkeys);
             ThemeMode = NormalizeThemeMode(_settingsService.Settings.Theme.Mode);
             AccentColor = _settingsService.Settings.Theme.AccentColor;
             SelectedOutputBackend = _settingsService.Settings.Output.SelectedBackend;
@@ -185,6 +189,7 @@ public partial class SettingsWindowViewModel : ObservableObject
             }
 
             _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
+            RefreshHotkeyBindings(_settingsService.Settings.Hotkeys);
             Status = "Settings saved.";
         }
         catch (Exception ex)
@@ -194,6 +199,16 @@ public partial class SettingsWindowViewModel : ObservableObject
         }
     }
 
+
+    private void RefreshHotkeyBindings(HotkeySettings settings)
+    {
+        HotkeyBindings.Clear();
+
+        foreach (var item in HotkeyService.CreateDisplayItems(settings, _hotkeyService?.ActiveBindings))
+        {
+            HotkeyBindings.Add(item);
+        }
+    }
 
     private static string NormalizeThemeMode(string? mode)
     {

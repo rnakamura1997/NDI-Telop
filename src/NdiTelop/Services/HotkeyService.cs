@@ -1,6 +1,6 @@
+using NdiTelop.Models;
 using System.Runtime.InteropServices;
 using Avalonia.Threading;
-using NdiTelop.Models;
 using Serilog;
 
 namespace NdiTelop.Services;
@@ -17,6 +17,16 @@ public enum HotkeyAction
 
 public sealed class HotkeyService : IDisposable
 {
+    private static readonly IReadOnlyList<(HotkeyAction Action, string ActionName, Func<HotkeySettings, string> Selector)> BindingDefinitions =
+    [
+        (HotkeyAction.Preset1, "プリセット1に切り替え", settings => settings.Preset1),
+        (HotkeyAction.Preset2, "プリセット2に切り替え", settings => settings.Preset2),
+        (HotkeyAction.Preset3, "プリセット3に切り替え", settings => settings.Preset3),
+        (HotkeyAction.Preset4, "プリセット4に切り替え", settings => settings.Preset4),
+        (HotkeyAction.Preset5, "プリセット5に切り替え", settings => settings.Preset5),
+        (HotkeyAction.ClearProgram, "プログラムをクリア", settings => settings.ClearProgram)
+    ];
+
     private readonly Dictionary<int, HotkeyAction> _actionsById = new();
     private readonly Dictionary<HotkeyAction, string> _bindings = new();
     private int _nextId = 1;
@@ -25,6 +35,32 @@ public sealed class HotkeyService : IDisposable
     public event Action<HotkeyAction>? HotkeyPressed;
 
     public IReadOnlyDictionary<HotkeyAction, string> ActiveBindings => _bindings;
+
+    public static IReadOnlyList<HotkeyBindingDisplayItem> CreateDisplayItems(HotkeySettings settings, IReadOnlyDictionary<HotkeyAction, string>? activeBindings = null)
+    {
+        return BindingDefinitions
+            .Select(definition =>
+            {
+                var configuredShortcut = NormalizeShortcutText(definition.Selector(settings));
+                var registeredShortcut = activeBindings != null && activeBindings.TryGetValue(definition.Action, out var activeShortcut)
+                    ? NormalizeShortcutText(activeShortcut)
+                    : null;
+
+                var status = string.IsNullOrWhiteSpace(configuredShortcut)
+                    ? "未設定"
+                    : string.Equals(configuredShortcut, registeredShortcut, StringComparison.OrdinalIgnoreCase)
+                        ? "登録済み"
+                        : "設定のみ";
+
+                return new HotkeyBindingDisplayItem
+                {
+                    ActionName = definition.ActionName,
+                    Shortcut = configuredShortcut ?? "未設定",
+                    RegistrationStatus = status
+                };
+            })
+            .ToArray();
+    }
 
     public void ApplySettings(HotkeySettings settings)
     {
@@ -97,6 +133,9 @@ public sealed class HotkeyService : IDisposable
     }
 
     public void Dispose() => Stop();
+
+    private static string? NormalizeShortcutText(string? shortcut)
+        => string.IsNullOrWhiteSpace(shortcut) ? null : shortcut.Trim();
 }
 
 internal interface IHotkeyPlatform : IDisposable
