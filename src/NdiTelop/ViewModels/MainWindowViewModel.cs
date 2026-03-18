@@ -41,12 +41,13 @@ public partial class MainWindowViewModel : ObservableObject
 
 
     [ObservableProperty]
-    private Preset? _selectedPreset = new() { Name = "New Preset", TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
+    private Preset? _selectedPreset = new() { Name = "New Preset", TextStyle = new TextStyleSettings { FontSize = 48, Color = "#FFFFFF" }, TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
 
     partial void OnSelectedPresetChanged(Preset? value)
     {
         AttachOverlayListeners(value);
         AttachTextLineListeners(value);
+        AttachTextStyleListeners(value);
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -223,6 +224,30 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
+    private Preset? _textStyleBoundPreset;
+
+    private void AttachTextStyleListeners(Preset? preset)
+    {
+        if (_textStyleBoundPreset?.TextStyle != null)
+        {
+            _textStyleBoundPreset.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
+        }
+
+        _textStyleBoundPreset = preset;
+
+        if (_textStyleBoundPreset?.TextStyle == null)
+        {
+            return;
+        }
+
+        _textStyleBoundPreset.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
+    }
+
+    private void TextStyle_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
     private DispatcherTimer? _autoClearTimer;
     private bool _autoClearEnabled;
 
@@ -257,6 +282,8 @@ public partial class MainWindowViewModel : ObservableObject
         {
             AvailableFontFamilies.Add(family);
         }
+
+        EnsureTextStyleDefaults(SelectedPreset);
 
         // コマンドの初期化
         ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
@@ -398,6 +425,11 @@ public partial class MainWindowViewModel : ObservableObject
         await LoadAppSettingsAsync();
         await _presetService.LoadPresetsAsync();
         _hotkeyService?.ApplySettings(_settingsService.Settings.Hotkeys);
+        foreach (var preset in Presets)
+        {
+            EnsureTextStyleDefaults(preset);
+        }
+
         RefreshFilteredPresets();
         SelectedPreset ??= FilteredPresets.FirstOrDefault();
         Status = $"Loaded {Presets.Count} presets.";
@@ -565,6 +597,11 @@ public partial class MainWindowViewModel : ObservableObject
     public async Task ImportPresetsAsync(string filePath)
     {
         var importedCount = await _presetService.ImportPresetsAsync(filePath);
+        foreach (var preset in Presets)
+        {
+            EnsureTextStyleDefaults(preset);
+        }
+
         RefreshFilteredPresets();
         SelectedPreset ??= FilteredPresets.FirstOrDefault();
         Status = importedCount > 0
@@ -689,6 +726,33 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    private void EnsureTextStyleDefaults(Preset? preset)
+    {
+        if (preset == null)
+        {
+            return;
+        }
+
+        preset.TextStyle ??= new TextStyleSettings();
+
+        if (string.IsNullOrWhiteSpace(preset.TextStyle.FontFamily))
+        {
+            preset.TextStyle.FontFamily = preset.TextLines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line.FontFamily))?.FontFamily
+                ?? AvailableFontFamilies.FirstOrDefault()
+                ?? "Meiryo";
+        }
+
+        if (preset.TextStyle.FontSize <= 0)
+        {
+            preset.TextStyle.FontSize = preset.TextLines.FirstOrDefault(line => line.FontSize > 0)?.FontSize ?? 48;
+        }
+
+        if (string.IsNullOrWhiteSpace(preset.TextStyle.Color))
+        {
+            preset.TextStyle.Color = preset.TextLines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line.Color))?.Color ?? "#FFFFFF";
+        }
+    }
+
     [RelayCommand]
     private void AddTextLine()
     {
@@ -697,13 +761,21 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        var defaultFontFamily = AvailableFontFamilies.FirstOrDefault() ?? "Meiryo";
+        var defaultFontFamily = SelectedPreset.TextStyle.FontFamily;
+        if (string.IsNullOrWhiteSpace(defaultFontFamily))
+        {
+            defaultFontFamily = AvailableFontFamilies.FirstOrDefault() ?? "Meiryo";
+        }
+
+        var defaultFontSize = SelectedPreset.TextStyle.FontSize > 0 ? SelectedPreset.TextStyle.FontSize : 48;
+        var defaultColor = string.IsNullOrWhiteSpace(SelectedPreset.TextStyle.Color) ? "#FFFFFF" : SelectedPreset.TextStyle.Color;
+
         SelectedPreset.TextLines.Add(new TextLine
         {
             Text = "New line",
             FontFamily = defaultFontFamily,
-            FontSize = 48,
-            Color = "#FFFFFF"
+            FontSize = defaultFontSize,
+            Color = defaultColor
         });
     }
 

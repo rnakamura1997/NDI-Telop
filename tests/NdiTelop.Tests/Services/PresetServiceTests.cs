@@ -147,6 +147,7 @@ public class PresetServiceTests : IDisposable
             Id = "source",
             Name = "My Preset",
             AutoClearSeconds = 9,
+            TextStyle = new TextStyleSettings { FontFamily = "Arial", FontSize = 54, Color = "#F0F0F0", OutlineThickness = 3, OutlineColor = "#101010", ShadowOffsetX = 4, ShadowOffsetY = 6, ShadowBlur = 8, ShadowColor = "#66000000" },
             Background = new BackgroundStyle { Type = "image", AssetPath = "assets/bg.png", Alpha = 0.75, Color = "#112233" },
             Animation = new AnimationConfig { InType = "fade", OutType = "wipe", SpeedSeconds = 1.2f, Easing = "EaseInOut" },
             TextLines =
@@ -169,6 +170,15 @@ public class PresetServiceTests : IDisposable
         Assert.NotEqual(source.Id, duplicated!.Id);
         Assert.Equal("My Preset (Copy)", duplicated.Name);
         Assert.Equal(source.AutoClearSeconds, duplicated.AutoClearSeconds);
+        Assert.Equal(source.TextStyle.FontFamily, duplicated.TextStyle.FontFamily);
+        Assert.Equal(source.TextStyle.FontSize, duplicated.TextStyle.FontSize);
+        Assert.Equal(source.TextStyle.Color, duplicated.TextStyle.Color);
+        Assert.Equal(source.TextStyle.OutlineThickness, duplicated.TextStyle.OutlineThickness);
+        Assert.Equal(source.TextStyle.OutlineColor, duplicated.TextStyle.OutlineColor);
+        Assert.Equal(source.TextStyle.ShadowOffsetX, duplicated.TextStyle.ShadowOffsetX);
+        Assert.Equal(source.TextStyle.ShadowOffsetY, duplicated.TextStyle.ShadowOffsetY);
+        Assert.Equal(source.TextStyle.ShadowBlur, duplicated.TextStyle.ShadowBlur);
+        Assert.Equal(source.TextStyle.ShadowColor, duplicated.TextStyle.ShadowColor);
         Assert.Equal(source.Background.Type, duplicated.Background.Type);
         Assert.Equal(source.Background.AssetPath, duplicated.Background.AssetPath);
         Assert.Equal(source.Background.Alpha, duplicated.Background.Alpha);
@@ -349,6 +359,47 @@ public class PresetServiceTests : IDisposable
 
         Assert.Null(service.Presets.FirstOrDefault(x => x.Id == "bad1"));
         Assert.NotNull(service.Presets.FirstOrDefault(x => x.Id == "good1"));
+    }
+
+    [Fact]
+    public async Task SavePresetAsync_ShouldPersistTextStyleSettings()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var preset = new Preset
+        {
+            Id = "style-preset",
+            Name = "Styled Preset",
+            TextStyle = new TextStyleSettings
+            {
+                FontFamily = "Arial",
+                FontSize = 60,
+                Color = "#ABCDEF",
+                OutlineThickness = 2.5f,
+                OutlineColor = "#102030",
+                ShadowOffsetX = 5,
+                ShadowOffsetY = 7,
+                ShadowBlur = 4,
+                ShadowColor = "#80445566"
+            }
+        };
+
+        await service.SavePresetAsync(preset);
+
+        var reloaded = CreateService();
+        await reloaded.LoadPresetsAsync();
+        var saved = reloaded.Presets.Single(p => p.Id == "style-preset");
+
+        Assert.Equal("Arial", saved.TextStyle.FontFamily);
+        Assert.Equal(60, saved.TextStyle.FontSize);
+        Assert.Equal("#ABCDEF", saved.TextStyle.Color);
+        Assert.Equal(2.5f, saved.TextStyle.OutlineThickness);
+        Assert.Equal("#102030", saved.TextStyle.OutlineColor);
+        Assert.Equal(5, saved.TextStyle.ShadowOffsetX);
+        Assert.Equal(7, saved.TextStyle.ShadowOffsetY);
+        Assert.Equal(4, saved.TextStyle.ShadowBlur);
+        Assert.Equal("#80445566", saved.TextStyle.ShadowColor);
     }
 
     [Fact]

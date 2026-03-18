@@ -340,4 +340,55 @@ public class RenderServiceTests
         }
     }
 
+
+    [Fact]
+    public void Render_ShouldApplyPresetTextStyleOverridesIncludingShadowAndOutline()
+    {
+        var service = new RenderService();
+        var basePreset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextLines = [new TextLine { Text = "Style", FontFamily = "Meiryo", FontSize = 24, Color = "#FFFFFF" }]
+        };
+
+        var styledPreset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextStyle = new TextStyleSettings
+            {
+                FontFamily = "Arial",
+                FontSize = 48,
+                Color = "#FF0000",
+                OutlineThickness = 3,
+                OutlineColor = "#00FF00",
+                ShadowOffsetX = 6,
+                ShadowOffsetY = 6,
+                ShadowBlur = 2,
+                ShadowColor = "#800000FF"
+            },
+            TextLines = [new TextLine { Text = "Style", FontFamily = "Meiryo", FontSize = 24, Color = "#FFFFFF" }]
+        };
+
+        using var baseBitmap = service.Render(basePreset, 320, 180);
+        using var styledBitmap = service.Render(styledPreset, 320, 180);
+
+        Assert.NotEmpty(baseBitmap.Bytes);
+        Assert.NotEmpty(styledBitmap.Bytes);
+
+        var hasDifference = false;
+        for (var y = 0; y < styledBitmap.Height && !hasDifference; y++)
+        {
+            for (var x = 0; x < styledBitmap.Width; x++)
+            {
+                if (styledBitmap.GetPixel(x, y) != baseBitmap.GetPixel(x, y))
+                {
+                    hasDifference = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(hasDifference);
+    }
+
 }
