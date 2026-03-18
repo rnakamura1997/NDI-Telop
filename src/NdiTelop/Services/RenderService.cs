@@ -23,7 +23,7 @@ public class RenderService : IRenderService
         canvas.Clear(SKColors.Transparent);
 
         DrawBackground(canvas, preset.Background, width, height);
-        DrawTextLines(canvas, preset.TextLines, width, height);
+        DrawTextLines(canvas, preset.TextLines, preset.TextStyle, width, height);
         DrawOverlays(canvas, preset.Overlays, width, height);
 
         return bitmap;
@@ -160,7 +160,7 @@ public class RenderService : IRenderService
                     continue;
                 }
 
-            var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
+                var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
                 if (opacity <= 0) continue;
 
                 using var paint = new SKPaint
@@ -178,28 +178,88 @@ public class RenderService : IRenderService
         }
     }
 
-    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, int width, int height)
+    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, int width, int height)
     {
-        // Simple vertical centering for now
-        var totalTextHeight = lines.Sum(line => line.FontSize + 10); // Estimate with line spacing
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        var totalTextHeight = lines.Sum(line => GetEffectiveFontSize(line, style) + 10);
         var y = (height - totalTextHeight) / 2f;
 
         foreach (var line in lines)
         {
-            using var font = new SKFont(SKTypeface.FromFamilyName(line.FontFamily), Math.Clamp((float)line.FontSize, 8, 300));
-            using var paint = new SKPaint
-            {
-                Color = SKColor.Parse(line.Color),
-                IsAntialias = true
-            };
+            var fontFamily = GetEffectiveFontFamily(line, style);
+            var fontSize = GetEffectiveFontSize(line, style);
+            var fillColor = ParseColorOrDefault(GetEffectiveColor(line, style), SKColors.White);
+            var outlineThickness = Math.Max(0f, style?.OutlineThickness ?? 0f);
+            var outlineColor = ParseColorOrDefault(style?.OutlineColor, SKColors.Black);
+            var shadowOffsetX = style?.ShadowOffsetX ?? 0f;
+            var shadowOffsetY = style?.ShadowOffsetY ?? 0f;
+            var shadowBlur = Math.Max(0f, style?.ShadowBlur ?? 0f);
+            var shadowColor = ParseColorOrDefault(style?.ShadowColor, SKColors.Transparent);
+
+            using var typeface = SKTypeface.FromFamilyName(fontFamily) ?? SKTypeface.Default;
+            using var font = new SKFont(typeface, fontSize);
 
             var textBounds = new SKRect();
             font.MeasureText(line.Text, out textBounds);
-            var x = (width - textBounds.Width) / 2 - textBounds.Left;
+            var x = (width - textBounds.Width) / 2f - textBounds.Left;
             var textBaseline = y + font.Size;
-            canvas.DrawText(line.Text, x, textBaseline, font, paint);
-            y += font.Size + 10; // Move to next line
+
+            if (shadowColor.Alpha > 0 && (shadowBlur > 0f || shadowOffsetX != 0f || shadowOffsetY != 0f))
+            {
+                using var shadowPaint = new SKPaint
+                {
+                    Color = shadowColor,
+                    IsAntialias = true,
+                    MaskFilter = shadowBlur > 0f ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, shadowBlur) : null
+                };
+                canvas.DrawText(line.Text, x + shadowOffsetX, textBaseline + shadowOffsetY, font, shadowPaint);
+            }
+
+            if (outlineThickness > 0f)
+            {
+                using var outlinePaint = new SKPaint
+                {
+                    Color = outlineColor,
+                    IsAntialias = true,
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = outlineThickness,
+                    StrokeJoin = SKStrokeJoin.Round
+                };
+                canvas.DrawText(line.Text, x, textBaseline, font, outlinePaint);
+            }
+
+            using var fillPaint = new SKPaint
+            {
+                Color = fillColor,
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill
+            };
+            canvas.DrawText(line.Text, x, textBaseline, font, fillPaint);
+            y += font.Size + 10;
         }
+    }
+
+    private static string GetEffectiveFontFamily(TextLine line, TextStyleSettings? style)
+        => !string.IsNullOrWhiteSpace(style?.FontFamily) ? style.FontFamily : line.FontFamily;
+
+    private static float GetEffectiveFontSize(TextLine line, TextStyleSettings? style)
+        => Math.Clamp(style?.FontSize > 0 ? style.FontSize : line.FontSize, 8, 300);
+
+    private static string GetEffectiveColor(TextLine line, TextStyleSettings? style)
+        => !string.IsNullOrWhiteSpace(style?.Color) ? style.Color : line.Color;
+
+    private static SKColor ParseColorOrDefault(string? value, SKColor fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        return SKColor.TryParse(value, out var parsed) ? parsed : fallback;
     }
 
     private static float Clamp01(float value)
