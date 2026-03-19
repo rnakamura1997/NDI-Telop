@@ -5,6 +5,7 @@ using Avalonia.Media;
 using NdiTelop.Models;
 using ModelTextBlock = NdiTelop.Models.TextBlock;
 using NdiTelop.Services;
+using NdiTelop.ViewModels;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
@@ -16,19 +17,23 @@ namespace NdiTelop.Controls;
 
 public partial class PreviewCanvas : UserControl
 {
+    private const string AssetDragDataFormat = "application/x-nditelop-asset-path";
     private const double HandleRadius = 5d;
     private static readonly Pen SelectionPen = new(new SolidColorBrush(Color.Parse("#00B7FF")), 2);
     private static readonly IBrush SelectionFill = new SolidColorBrush(Color.Parse("#00B7FF"));
 
     private readonly RenderService _renderService;
     private readonly Dictionary<ModelTextBlock, Rect> _textBlockBounds = [];
+    private readonly Dictionary<OverlayItem, Rect> _overlayBounds = [];
     private readonly List<ModelTextBlock> _subscribedBlocks = [];
+    private readonly List<OverlayItem> _subscribedOverlays = [];
     private SKBitmap? _renderedBitmap;
-    private Preset? _subscribedPreset;
     private bool _isDragging;
     private Point _dragStartPoint;
     private float _dragStartOffsetX;
     private float _dragStartOffsetY;
+    private DragTargetType _dragTargetType;
+    private OverlayItem? _selectedOverlay;
 
     public static readonly DirectProperty<PreviewCanvas, Preset?> PresetProperty =
         AvaloniaProperty.RegisterDirect<PreviewCanvas, Preset?>(
@@ -56,7 +61,7 @@ public partial class PreviewCanvas : UserControl
             UnsubscribeFromPreset(_preset);
             SetAndRaise(PresetProperty, ref _preset, value);
             SubscribeToPreset(_preset);
-            EnsureSelectedTextBlockBelongsToPreset();
+            EnsureSelectionBelongsToPreset();
             InvalidateVisual();
         }
     }
@@ -73,6 +78,11 @@ public partial class PreviewCanvas : UserControl
             }
 
             SetAndRaise(SelectedTextBlockProperty, ref _selectedTextBlock, value);
+            if (value != null)
+            {
+                _selectedOverlay = null;
+            }
+
             InvalidateVisual();
         }
     }
@@ -93,6 +103,9 @@ public partial class PreviewCanvas : UserControl
         InitializeComponent();
         _renderService = new RenderService();
         ClipToBounds = true;
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragOverEvent, PreviewCanvas_OnDragOver);
+        AddHandler(DragDrop.DropEvent, PreviewCanvas_OnDrop);
     }
 
     public override void Render(DrawingContext context)
@@ -106,7 +119,7 @@ public partial class PreviewCanvas : UserControl
 
         _renderedBitmap?.Dispose();
         _renderedBitmap = _renderService.Render(Preset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
-        UpdateTextBlockBounds();
+        UpdateBounds();
 
         if (_renderedBitmap == null)
         {
@@ -123,13 +136,13 @@ public partial class PreviewCanvas : UserControl
             using var image = new Avalonia.Media.Imaging.Bitmap(encoded.AsStream());
             context.DrawImage(image, new Rect(0, 0, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight));
 
-            if (SelectedTextBlock != null && _textBlockBounds.TryGetValue(SelectedTextBlock, out var selectedBounds))
+            if (_selectedOverlay != null && _overlayBounds.TryGetValue(_selectedOverlay, out var selectedOverlayBounds))
             {
-                context.DrawRectangle(null, SelectionPen, selectedBounds);
-                foreach (var handleCenter in GetHandleCenters(selectedBounds))
-                {
-                    context.DrawEllipse(SelectionFill, SelectionPen, handleCenter, HandleRadius, HandleRadius);
-                }
+                DrawSelection(context, selectedOverlayBounds);
+            }
+            else if (SelectedTextBlock != null && _textBlockBounds.TryGetValue(SelectedTextBlock, out var selectedTextBounds))
+            {
+                DrawSelection(context, selectedTextBounds);
             }
         }
     }
@@ -144,21 +157,35 @@ public partial class PreviewCanvas : UserControl
         }
 
         var point = ToRenderPoint(e.GetPosition(this));
-        var block = HitTestBlock(point);
-        SelectedTextBlock = block;
+        var hit = HitTestItem(point);
 
-        if (block != null)
+        switch (hit.TargetType)
         {
-            _isDragging = true;
-            _dragStartPoint = point;
-            _dragStartOffsetX = block.TextLayout.OffsetX;
-            _dragStartOffsetY = block.TextLayout.OffsetY;
-            e.Pointer.Capture(this);
-        }
-        else
-        {
-            _isDragging = false;
-            e.Pointer.Capture(null);
+            case DragTargetType.Overlay when hit.Overlay != null:
+                _selectedOverlay = hit.Overlay;
+                SelectedTextBlock = null;
+                _dragTargetType = DragTargetType.Overlay;
+                _dragStartOffsetX = hit.Overlay.X;
+                _dragStartOffsetY = hit.Overlay.Y;
+                BeginDrag(e, point);
+                break;
+
+            case DragTargetType.TextBlock when hit.TextBlock != null:
+                _selectedOverlay = null;
+                SelectedTextBlock = hit.TextBlock;
+                _dragTargetType = DragTargetType.TextBlock;
+                _dragStartOffsetX = hit.TextBlock.TextLayout.OffsetX;
+                _dragStartOffsetY = hit.TextBlock.TextLayout.OffsetY;
+                BeginDrag(e, point);
+                break;
+
+            default:
+                _selectedOverlay = null;
+                SelectedTextBlock = null;
+                _dragTargetType = DragTargetType.None;
+                _isDragging = false;
+                e.Pointer.Capture(null);
+                break;
         }
 
         InvalidateVisual();
@@ -169,14 +196,25 @@ public partial class PreviewCanvas : UserControl
     {
         base.OnPointerMoved(e);
 
-        if (!_isDragging || SelectedTextBlock == null || NdiConfig == null)
+        if (!_isDragging || NdiConfig == null)
         {
             return;
         }
 
         var point = ToRenderPoint(e.GetPosition(this));
-        SelectedTextBlock.TextLayout.OffsetX = _dragStartOffsetX + (float)(point.X - _dragStartPoint.X);
-        SelectedTextBlock.TextLayout.OffsetY = _dragStartOffsetY + (float)(point.Y - _dragStartPoint.Y);
+        switch (_dragTargetType)
+        {
+            case DragTargetType.TextBlock when SelectedTextBlock != null:
+                SelectedTextBlock.TextLayout.OffsetX = _dragStartOffsetX + (float)(point.X - _dragStartPoint.X);
+                SelectedTextBlock.TextLayout.OffsetY = _dragStartOffsetY + (float)(point.Y - _dragStartPoint.Y);
+                break;
+
+            case DragTargetType.Overlay when _selectedOverlay != null:
+                _selectedOverlay.X = (int)Math.Round(_dragStartOffsetX + (point.X - _dragStartPoint.X));
+                _selectedOverlay.Y = (int)Math.Round(_dragStartOffsetY + (point.Y - _dragStartPoint.Y));
+                break;
+        }
+
         InvalidateVisual();
         e.Handled = true;
     }
@@ -191,6 +229,35 @@ public partial class PreviewCanvas : UserControl
     {
         base.OnPointerCaptureLost(e);
         _isDragging = false;
+        _dragTargetType = DragTargetType.None;
+    }
+
+    private void PreviewCanvas_OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = HasAssetData(e) && Preset != null && NdiConfig != null ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void PreviewCanvas_OnDrop(object? sender, DragEventArgs e)
+    {
+
+        if (!HasAssetData(e) || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var relativePath = e.Data.Get(AssetDragDataFormat) as string ?? e.Data.GetText();
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        var point = ToRenderPoint(e.GetPosition(this));
+        viewModel.AddOverlayFromAsset(relativePath, point.X, point.Y, centerOnDrop: true);
+        _selectedOverlay = Preset?.Overlays.LastOrDefault();
+        SelectedTextBlock = null;
+        InvalidateVisual();
+        e.Handled = true;
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -199,24 +266,51 @@ public partial class PreviewCanvas : UserControl
         InvalidateVisual();
     }
 
+    private static bool HasAssetData(DragEventArgs e) => e.Data.Contains(AssetDragDataFormat);
+
+    private void BeginDrag(PointerPressedEventArgs e, Point point)
+    {
+        _isDragging = true;
+        _dragStartPoint = point;
+        e.Pointer.Capture(this);
+    }
+
     private void EndDrag(PointerReleasedEventArgs e)
     {
         if (_isDragging)
         {
             _isDragging = false;
+            _dragTargetType = DragTargetType.None;
             e.Pointer.Capture(null);
             InvalidateVisual();
         }
     }
 
-    private void EnsureSelectedTextBlockBelongsToPreset()
+    private void DrawSelection(DrawingContext context, Rect bounds)
     {
-        if (SelectedTextBlock != null && Preset?.TextBlocks.Contains(SelectedTextBlock) == true)
+        context.DrawRectangle(null, SelectionPen, bounds);
+        foreach (var handleCenter in GetHandleCenters(bounds))
         {
-            return;
+            context.DrawEllipse(SelectionFill, SelectionPen, handleCenter, HandleRadius, HandleRadius);
+        }
+    }
+
+    private void EnsureSelectionBelongsToPreset()
+    {
+        if (SelectedTextBlock != null && Preset?.TextBlocks.Contains(SelectedTextBlock) != true)
+        {
+            SelectedTextBlock = null;
         }
 
-        SelectedTextBlock = Preset?.TextBlocks.FirstOrDefault();
+        if (_selectedOverlay != null && Preset?.Overlays.Contains(_selectedOverlay) != true)
+        {
+            _selectedOverlay = null;
+        }
+
+        if (_selectedOverlay == null && SelectedTextBlock == null)
+        {
+            SelectedTextBlock = Preset?.TextBlocks.FirstOrDefault();
+        }
     }
 
     private Point ToRenderPoint(Point point)
@@ -231,17 +325,31 @@ public partial class PreviewCanvas : UserControl
             point.Y * NdiConfig.ResolutionHeight / Bounds.Height);
     }
 
-    private ModelTextBlock? HitTestBlock(Point point)
+    private HitTestResult HitTestItem(Point point)
     {
+        foreach (var overlay in Preset?.Overlays.Reverse() ?? Enumerable.Empty<OverlayItem>())
+        {
+            if (_overlayBounds.TryGetValue(overlay, out var bounds) && bounds.Contains(point))
+            {
+                return new HitTestResult(DragTargetType.Overlay, null, overlay);
+            }
+        }
+
         foreach (var block in Preset?.TextBlocks.Reverse() ?? Enumerable.Empty<ModelTextBlock>())
         {
             if (_textBlockBounds.TryGetValue(block, out var bounds) && bounds.Contains(point))
             {
-                return block;
+                return new HitTestResult(DragTargetType.TextBlock, block, null);
             }
         }
 
-        return null;
+        return new HitTestResult(DragTargetType.None, null, null);
+    }
+
+    private void UpdateBounds()
+    {
+        UpdateTextBlockBounds();
+        UpdateOverlayBounds();
     }
 
     private void UpdateTextBlockBounds()
@@ -259,6 +367,23 @@ public partial class PreviewCanvas : UserControl
             {
                 _textBlockBounds[block] = bounds.Inflate(8);
             }
+        }
+    }
+
+    private void UpdateOverlayBounds()
+    {
+        _overlayBounds.Clear();
+
+        foreach (var overlay in Preset?.Overlays ?? [])
+        {
+            if (!overlay.IsVisible)
+            {
+                continue;
+            }
+
+            var width = Math.Max(1, overlay.Width);
+            var height = Math.Max(1, overlay.Height);
+            _overlayBounds[overlay] = new Rect(overlay.X, overlay.Y, width, height).Inflate(6);
         }
     }
 
@@ -330,9 +455,10 @@ public partial class PreviewCanvas : UserControl
             return;
         }
 
-        _subscribedPreset = preset;
         preset.TextBlocks.CollectionChanged += TextBlocks_CollectionChanged;
+        preset.Overlays.CollectionChanged += Overlays_CollectionChanged;
         SubscribeToBlocks(preset.TextBlocks);
+        SubscribeToOverlays(preset.Overlays);
     }
 
     private void UnsubscribeFromPreset(Preset? preset)
@@ -343,8 +469,9 @@ public partial class PreviewCanvas : UserControl
         }
 
         preset.TextBlocks.CollectionChanged -= TextBlocks_CollectionChanged;
+        preset.Overlays.CollectionChanged -= Overlays_CollectionChanged;
         UnsubscribeFromBlocks(_subscribedBlocks.ToArray());
-        _subscribedPreset = null;
+        UnsubscribeFromOverlays(_subscribedOverlays.ToArray());
     }
 
     private void TextBlocks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -359,7 +486,23 @@ public partial class PreviewCanvas : UserControl
             SubscribeToBlocks(e.NewItems.OfType<ModelTextBlock>());
         }
 
-        EnsureSelectedTextBlockBelongsToPreset();
+        EnsureSelectionBelongsToPreset();
+        InvalidateVisual();
+    }
+
+    private void Overlays_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            UnsubscribeFromOverlays(e.OldItems.OfType<OverlayItem>());
+        }
+
+        if (e.NewItems != null)
+        {
+            SubscribeToOverlays(e.NewItems.OfType<OverlayItem>());
+        }
+
+        EnsureSelectionBelongsToPreset();
         InvalidateVisual();
     }
 
@@ -399,6 +542,29 @@ public partial class PreviewCanvas : UserControl
         }
     }
 
+    private void SubscribeToOverlays(IEnumerable<OverlayItem> overlays)
+    {
+        foreach (var overlay in overlays)
+        {
+            if (_subscribedOverlays.Contains(overlay))
+            {
+                continue;
+            }
+
+            _subscribedOverlays.Add(overlay);
+            overlay.PropertyChanged += NestedObject_PropertyChanged;
+        }
+    }
+
+    private void UnsubscribeFromOverlays(IEnumerable<OverlayItem> overlays)
+    {
+        foreach (var overlay in overlays.ToArray())
+        {
+            overlay.PropertyChanged -= NestedObject_PropertyChanged;
+            _subscribedOverlays.Remove(overlay);
+        }
+    }
+
     private void TextLines_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.OldItems != null)
@@ -424,4 +590,13 @@ public partial class PreviewCanvas : UserControl
     {
         InvalidateVisual();
     }
+
+    private enum DragTargetType
+    {
+        None,
+        TextBlock,
+        Overlay
+    }
+
+    private readonly record struct HitTestResult(DragTargetType TargetType, ModelTextBlock? TextBlock, OverlayItem? Overlay);
 }

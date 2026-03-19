@@ -58,7 +58,7 @@
 
     <!-- Center Column: Preview Area -->
     <Border Grid.Column="1" Margin="10" BorderBrush="#333" BorderThickness="1" Background="Black">
-      <ctrl:PreviewCanvas Preset="{Binding CurrentPreviewPreset}"
+      <ctrl:PreviewCanvas x:Name="PreviewCanvas" Preset="{Binding CurrentPreviewPreset}"
                           SelectedTextBlock="{Binding SelectedTextBlock, Mode=TwoWay}"
                           NdiConfig="{Binding NdiConfig}" />
     </Border>
@@ -201,7 +201,7 @@
 
       <TextBlock Text="Asset Browser" FontWeight="Bold" Margin="0,10,0,5" />
       <Button Content="Refresh Assets" Command="{Binding RefreshAssetsCommand}" HorizontalAlignment="Stretch" />
-      <ListBox ItemsSource="{Binding AssetItems}" SelectedItem="{Binding SelectedAsset}" MinHeight="180" MaxHeight="220">
+      <ListBox x:Name="AssetListBox" ItemsSource="{Binding AssetItems}" SelectedItem="{Binding SelectedAsset}" MinHeight="180" MaxHeight="220">
         <ListBox.ItemTemplate>
           <DataTemplate>
             <StackPanel Orientation="Horizontal" Spacing="8">

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using NdiTelop.Models;
 using System.Globalization;
 using System.Text;
@@ -204,7 +205,7 @@ internal static class CsvPresetCodec
                 AutoClearSeconds = autoClearSeconds,
                 TextBlocks = textBlocks.Count > 0 ? [.. textBlocks] : [],
                 TextLines = [.. textLines],
-                Overlays = overlays,
+                Overlays = new ObservableCollection<OverlayItem>(overlays),
                 Background = new BackgroundStyle
                 {
                     Type = tokens[3],
