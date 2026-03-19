@@ -58,7 +58,9 @@
 
     <!-- Center Column: Preview Area -->
     <Border Grid.Column="1" Margin="10" BorderBrush="#333" BorderThickness="1" Background="Black">
-      <ctrl:PreviewCanvas Preset="{Binding CurrentPreviewPreset}" NdiConfig="{Binding NdiConfig}" />
+      <ctrl:PreviewCanvas Preset="{Binding CurrentPreviewPreset}"
+                          SelectedTextBlock="{Binding SelectedTextBlock, Mode=TwoWay}"
+                          NdiConfig="{Binding NdiConfig}" />
     </Border>
 
     <!-- Right Column: Preset Editor and Overlay Manager -->
