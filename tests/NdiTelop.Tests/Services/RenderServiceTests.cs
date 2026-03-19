@@ -456,6 +456,42 @@ public class RenderServiceTests
         Assert.True(topBounds.Value.Bottom < bottomBounds.Value.Bottom);
     }
 
+    [Fact]
+    public void Render_ShouldDrawMultipleTextBlocksAtIndependentPositions()
+    {
+        var service = new RenderService();
+        var preset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextBlocks =
+            [
+                new NdiTelop.Models.TextBlock
+                {
+                    Name = "TopLeft",
+                    TextStyle = new TextStyleSettings { FontSize = 48, Color = "#FFFFFF" },
+                    TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Left, VerticalAlignment = VerticalTextAlignment.Top, OffsetX = 10, OffsetY = 10 },
+                    TextLines = [new TextLine { Text = "A" }]
+                },
+                new NdiTelop.Models.TextBlock
+                {
+                    Name = "BottomRight",
+                    TextStyle = new TextStyleSettings { FontSize = 48, Color = "#FFFFFF" },
+                    TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Right, VerticalAlignment = VerticalTextAlignment.Bottom, OffsetX = -10, OffsetY = -10 },
+                    TextLines = [new TextLine { Text = "B" }]
+                }
+            ]
+        };
+
+        using var bitmap = service.Render(preset, 400, 200);
+        var bounds = GetDrawnBounds(bitmap);
+
+        Assert.NotNull(bounds);
+        Assert.True(bounds!.Value.Left < 80);
+        Assert.True(bounds.Value.Top < 80);
+        Assert.True(bounds.Value.Right > 320);
+        Assert.True(bounds.Value.Bottom > 120);
+    }
+
     private static SKRectI? GetDrawnBounds(SKBitmap bitmap)
     {
         var minX = bitmap.Width;
