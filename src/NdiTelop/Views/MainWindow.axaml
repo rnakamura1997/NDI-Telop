@@ -60,6 +60,7 @@
     <Border Grid.Column="1" Margin="10" BorderBrush="#333" BorderThickness="1" Background="Black">
       <ctrl:PreviewCanvas x:Name="PreviewCanvas" Preset="{Binding CurrentPreviewPreset}"
                           SelectedTextBlock="{Binding SelectedTextBlock, Mode=TwoWay}"
+                          AlignmentReferenceMode="{Binding SelectedAlignmentReferenceMode, Mode=TwoWay}"
                           NdiConfig="{Binding NdiConfig}" />
     </Border>
 
@@ -95,6 +96,20 @@
 
       <Border BorderBrush="#555" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,4,0,0">
       <StackPanel Spacing="6">
+      <TextBlock Text="Alignment Tools" FontWeight="SemiBold" />
+      <TextBlock Text="Reference" />
+      <ComboBox ItemsSource="{Binding AvailableAlignmentReferenceModes}"
+                SelectedItem="{Binding SelectedAlignmentReferenceMode, Mode=TwoWay}" />
+      <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="6">
+        <Button Grid.Row="0" Grid.Column="0" Content="左揃え" Click="AlignmentButton_OnClick" Tag="AlignLeft" />
+        <Button Grid.Row="0" Grid.Column="1" Content="中央揃え(水平)" Click="AlignmentButton_OnClick" Tag="AlignHorizontalCenter" />
+        <Button Grid.Row="0" Grid.Column="2" Content="右揃え" Click="AlignmentButton_OnClick" Tag="AlignRight" />
+        <Button Grid.Row="1" Grid.Column="0" Content="上揃え" Click="AlignmentButton_OnClick" Tag="AlignTop" />
+        <Button Grid.Row="1" Grid.Column="1" Content="中央揃え(垂直)" Click="AlignmentButton_OnClick" Tag="AlignVerticalCenter" />
+        <Button Grid.Row="1" Grid.Column="2" Content="下揃え" Click="AlignmentButton_OnClick" Tag="AlignBottom" />
+        <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Content="等間隔に整列(水平)" Click="AlignmentButton_OnClick" Tag="DistributeHorizontal" />
+      </Grid>
+      <Button Content="等間隔に整列(垂直)" Click="AlignmentButton_OnClick" Tag="DistributeVertical" />
       <TextBlock Text="Selected Block" FontWeight="SemiBold" />
       <TextBlock Text="Block Name" />
       <TextBox Text="{Binding SelectedTextBlock.Name, Mode=TwoWay}" />
