@@ -155,6 +155,15 @@ public partial class MainWindowViewModel : ObservableObject
         VerticalTextAlignment.Bottom
     ];
 
+    public ObservableCollection<SelectionAlignmentReferenceMode> AvailableAlignmentReferenceModes { get; } =
+    [
+        SelectionAlignmentReferenceMode.SelectionBounds,
+        SelectionAlignmentReferenceMode.LastSelectedElement
+    ];
+
+    [ObservableProperty]
+    private SelectionAlignmentReferenceMode _selectedAlignmentReferenceMode = SelectionAlignmentReferenceMode.SelectionBounds;
+
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
         "fade",
@@ -1119,6 +1128,12 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedPreset.Background.AssetPath = SelectedAsset.RelativePath;
         SelectedPreset.Background.Alpha = 1.0;
         Status = $"Background set: {SelectedAsset.FileName}";
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    public void ReportSelectionAlignment(string description)
+    {
+        Status = description;
         OnPropertyChanged(nameof(SelectedPreset));
     }
 

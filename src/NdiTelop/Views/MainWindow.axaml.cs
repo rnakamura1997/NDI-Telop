@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using NdiTelop.Controls;
 using NdiTelop.Models;
 using NdiTelop.ViewModels;
 using System.Linq;
@@ -380,6 +381,39 @@ public partial class MainWindow : Window
 
         await viewModel.ExportVisibleLogsCommand.ExecuteAsync(file.Path.LocalPath);
     }
+
+    private void AlignmentButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string tag }
+            || !Enum.TryParse<SelectionAlignmentCommand>(tag, out var command)
+            || this.FindControl<PreviewCanvas>("PreviewCanvas") is not { } previewCanvas
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (!previewCanvas.AlignSelection(command))
+        {
+            viewModel.ReportSelectionAlignment("整列には2つ以上の要素を選択してください。");
+            return;
+        }
+
+        viewModel.ReportSelectionAlignment($"整列を適用しました: {GetAlignmentCommandLabel(command)}");
+    }
+
+    private static string GetAlignmentCommandLabel(SelectionAlignmentCommand command)
+        => command switch
+        {
+            SelectionAlignmentCommand.AlignLeft => "左揃え",
+            SelectionAlignmentCommand.AlignHorizontalCenter => "中央揃え（水平方向）",
+            SelectionAlignmentCommand.AlignRight => "右揃え",
+            SelectionAlignmentCommand.AlignTop => "上揃え",
+            SelectionAlignmentCommand.AlignVerticalCenter => "中央揃え（垂直方向）",
+            SelectionAlignmentCommand.AlignBottom => "下揃え",
+            SelectionAlignmentCommand.DistributeHorizontal => "等間隔（水平方向）",
+            SelectionAlignmentCommand.DistributeVertical => "等間隔（垂直方向）",
+            _ => command.ToString()
+        };
 
 }
 

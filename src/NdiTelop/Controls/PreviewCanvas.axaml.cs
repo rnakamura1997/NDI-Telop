@@ -36,6 +36,7 @@ public partial class PreviewCanvas : UserControl
     private readonly HashSet<OverlayItem> _selectedOverlays = [];
     private readonly Dictionary<ModelTextBlock, Point> _dragStartTextPositions = [];
     private readonly Dictionary<OverlayItem, Point> _dragStartOverlayPositions = [];
+    private readonly List<SelectionEntry> _selectionOrder = [];
     private SKBitmap? _renderedBitmap;
     private bool _isDragging;
     private bool _isRubberBandSelecting;
@@ -59,6 +60,10 @@ public partial class PreviewCanvas : UserControl
     public static readonly DirectProperty<PreviewCanvas, NdiConfig?> NdiConfigProperty =
         AvaloniaProperty.RegisterDirect<PreviewCanvas, NdiConfig?>(
             nameof(NdiConfig), o => o.NdiConfig, (o, v) => o.NdiConfig = v);
+
+    public static readonly DirectProperty<PreviewCanvas, SelectionAlignmentReferenceMode> AlignmentReferenceModeProperty =
+        AvaloniaProperty.RegisterDirect<PreviewCanvas, SelectionAlignmentReferenceMode>(
+            nameof(AlignmentReferenceMode), o => o.AlignmentReferenceMode, (o, v) => o.AlignmentReferenceMode = v);
 
     private Preset? _preset;
     public Preset? Preset
@@ -109,6 +114,13 @@ public partial class PreviewCanvas : UserControl
             SetAndRaise(NdiConfigProperty, ref _ndiConfig, value);
             InvalidateVisual();
         }
+    }
+
+    private SelectionAlignmentReferenceMode _alignmentReferenceMode = SelectionAlignmentReferenceMode.SelectionBounds;
+    public SelectionAlignmentReferenceMode AlignmentReferenceMode
+    {
+        get => _alignmentReferenceMode;
+        set => SetAndRaise(AlignmentReferenceModeProperty, ref _alignmentReferenceMode, value);
     }
 
     public PreviewCanvas()
@@ -385,6 +397,12 @@ public partial class PreviewCanvas : UserControl
     {
         _selectedTextBlocks.RemoveWhere(block => Preset?.TextBlocks.Contains(block) != true);
         _selectedOverlays.RemoveWhere(overlay => Preset?.Overlays.Contains(overlay) != true);
+        _selectionOrder.RemoveAll(entry => entry.Type switch
+        {
+            SelectionItemType.TextBlock => entry.Item is not ModelTextBlock block || Preset?.TextBlocks.Contains(block) != true,
+            SelectionItemType.Overlay => entry.Item is not OverlayItem overlay || Preset?.Overlays.Contains(overlay) != true,
+            _ => true
+        });
 
         if (SelectedTextBlock != null && !_selectedTextBlocks.Contains(SelectedTextBlock))
         {
@@ -412,10 +430,13 @@ public partial class PreviewCanvas : UserControl
 
     private int SelectionCount => _selectedTextBlocks.Count + _selectedOverlays.Count;
 
+    public bool CanAlignSelection => SelectionCount > 1;
+
     private void ClearSelection()
     {
         _selectedTextBlocks.Clear();
         _selectedOverlays.Clear();
+        _selectionOrder.Clear();
         SelectedTextBlock = null;
         _selectedOverlay = null;
     }
@@ -429,6 +450,7 @@ public partial class PreviewCanvas : UserControl
         }
 
         _selectedTextBlocks.Add(block);
+        TrackSelection(SelectionItemType.TextBlock, block);
         SelectedTextBlock = block;
         _selectedOverlay = null;
     }
@@ -442,6 +464,7 @@ public partial class PreviewCanvas : UserControl
         }
 
         _selectedOverlays.Add(overlay);
+        TrackSelection(SelectionItemType.Overlay, overlay);
         _selectedOverlay = overlay;
         SelectedTextBlock = null;
     }
@@ -457,6 +480,11 @@ public partial class PreviewCanvas : UserControl
         if (!_selectedTextBlocks.Add(block))
         {
             _selectedTextBlocks.Remove(block);
+            RemoveTrackedSelection(SelectionItemType.TextBlock, block);
+        }
+        else
+        {
+            TrackSelection(SelectionItemType.TextBlock, block);
         }
 
         if (_selectedTextBlocks.Count == 0 && _selectedOverlays.Count == 0)
@@ -480,6 +508,11 @@ public partial class PreviewCanvas : UserControl
         if (!_selectedOverlays.Add(overlay))
         {
             _selectedOverlays.Remove(overlay);
+            RemoveTrackedSelection(SelectionItemType.Overlay, overlay);
+        }
+        else
+        {
+            TrackSelection(SelectionItemType.Overlay, overlay);
         }
 
         if (_selectedTextBlocks.Count == 0 && _selectedOverlays.Count == 0)
@@ -570,6 +603,7 @@ public partial class PreviewCanvas : UserControl
             if (_overlayBounds.TryGetValue(overlay, out var bounds) && selectionRect.Intersects(bounds))
             {
                 _selectedOverlays.Add(overlay);
+                TrackSelection(SelectionItemType.Overlay, overlay);
                 _selectedOverlay = overlay;
             }
         }
@@ -579,6 +613,7 @@ public partial class PreviewCanvas : UserControl
             if (_textBlockBounds.TryGetValue(block, out var bounds) && selectionRect.Intersects(bounds))
             {
                 _selectedTextBlocks.Add(block);
+                TrackSelection(SelectionItemType.TextBlock, block);
                 SelectedTextBlock = block;
             }
         }
@@ -587,6 +622,288 @@ public partial class PreviewCanvas : UserControl
         {
             SelectedTextBlock = null;
         }
+    }
+
+    public bool AlignSelection(SelectionAlignmentCommand command)
+    {
+        UpdateBounds();
+        if (SelectionCount < 2)
+        {
+            return false;
+        }
+
+        var items = GetSelectedItems()
+            .Select(CreateAlignmentItem)
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToList();
+
+        if (items.Count < 2)
+        {
+            return false;
+        }
+
+        var selectionBounds = items.Select(item => item.Bounds).Aggregate((current, next) => current.Union(next));
+        var anchorBounds = AlignmentReferenceMode == SelectionAlignmentReferenceMode.LastSelectedElement
+            ? GetLastSelectedBounds() ?? selectionBounds
+            : selectionBounds;
+
+        switch (command)
+        {
+            case SelectionAlignmentCommand.AlignLeft:
+                foreach (var item in items)
+                {
+                    item.SetPosition(anchorBounds.Left, item.Bounds.Top);
+                }
+                break;
+            case SelectionAlignmentCommand.AlignHorizontalCenter:
+                foreach (var item in items)
+                {
+                    item.SetPosition(anchorBounds.Center.X - (item.Bounds.Width / 2d), item.Bounds.Top);
+                }
+                break;
+            case SelectionAlignmentCommand.AlignRight:
+                foreach (var item in items)
+                {
+                    item.SetPosition(anchorBounds.Right - item.Bounds.Width, item.Bounds.Top);
+                }
+                break;
+            case SelectionAlignmentCommand.AlignTop:
+                foreach (var item in items)
+                {
+                    item.SetPosition(item.Bounds.Left, anchorBounds.Top);
+                }
+                break;
+            case SelectionAlignmentCommand.AlignVerticalCenter:
+                foreach (var item in items)
+                {
+                    item.SetPosition(item.Bounds.Left, anchorBounds.Center.Y - (item.Bounds.Height / 2d));
+                }
+                break;
+            case SelectionAlignmentCommand.AlignBottom:
+                foreach (var item in items)
+                {
+                    item.SetPosition(item.Bounds.Left, anchorBounds.Bottom - item.Bounds.Height);
+                }
+                break;
+            case SelectionAlignmentCommand.DistributeHorizontal:
+                DistributeItems(items, isHorizontal: true);
+                break;
+            case SelectionAlignmentCommand.DistributeVertical:
+                DistributeItems(items, isHorizontal: false);
+                break;
+            default:
+                return false;
+        }
+
+        UpdateBounds();
+        InvalidateVisual();
+        return true;
+    }
+
+    private void DistributeItems(IReadOnlyList<AlignmentItem> items, bool isHorizontal)
+    {
+        if (items.Count < 3)
+        {
+            return;
+        }
+
+        var ordered = isHorizontal
+            ? items.OrderBy(item => item.Bounds.Left).ToList()
+            : items.OrderBy(item => item.Bounds.Top).ToList();
+
+        if (AlignmentReferenceMode == SelectionAlignmentReferenceMode.LastSelectedElement
+            && TryGetLastSelectedItem(out var anchorEntry))
+        {
+            var anchorItem = ordered.FirstOrDefault(item => item.Matches(anchorEntry));
+            if (anchorItem != null)
+            {
+                DistributeAroundAnchor(ordered, anchorItem, isHorizontal);
+                return;
+            }
+        }
+
+        DistributeAcrossBounds(ordered, isHorizontal);
+    }
+
+    private static void DistributeAcrossBounds(IReadOnlyList<AlignmentItem> ordered, bool isHorizontal)
+    {
+        var spanStart = isHorizontal ? ordered.First().Bounds.Left : ordered.First().Bounds.Top;
+        var spanEnd = isHorizontal ? ordered.Last().Bounds.Right : ordered.Last().Bounds.Bottom;
+        var totalSize = ordered.Sum(item => isHorizontal ? item.Bounds.Width : item.Bounds.Height);
+        var spacing = (spanEnd - spanStart - totalSize) / (ordered.Count - 1);
+        var cursor = spanStart;
+
+        foreach (var item in ordered)
+        {
+            if (isHorizontal)
+            {
+                item.SetPosition(cursor, item.Bounds.Top);
+                cursor += item.Bounds.Width + spacing;
+            }
+            else
+            {
+                item.SetPosition(item.Bounds.Left, cursor);
+                cursor += item.Bounds.Height + spacing;
+            }
+        }
+    }
+
+    private static void DistributeAroundAnchor(IReadOnlyList<AlignmentItem> ordered, AlignmentItem anchorItem, bool isHorizontal)
+    {
+        var anchorIndex = ordered
+            .Select((item, index) => new { item, index })
+            .FirstOrDefault(x => ReferenceEquals(x.item, anchorItem))
+            ?.index ?? -1;
+        if (anchorIndex < 0)
+        {
+            DistributeAcrossBounds(ordered, isHorizontal);
+            return;
+        }
+
+        var leftItems = ordered.Take(anchorIndex).ToList();
+        var rightItems = ordered.Skip(anchorIndex + 1).ToList();
+
+        if (leftItems.Count > 0)
+        {
+            var start = isHorizontal ? leftItems.First().Bounds.Left : leftItems.First().Bounds.Top;
+            var end = isHorizontal ? anchorItem.Bounds.Left : anchorItem.Bounds.Top;
+            var totalSize = leftItems.Sum(item => isHorizontal ? item.Bounds.Width : item.Bounds.Height);
+            var spacing = (end - start - totalSize) / leftItems.Count;
+            var cursor = start;
+
+            foreach (var item in leftItems)
+            {
+                if (isHorizontal)
+                {
+                    item.SetPosition(cursor, item.Bounds.Top);
+                    cursor += item.Bounds.Width + spacing;
+                }
+                else
+                {
+                    item.SetPosition(item.Bounds.Left, cursor);
+                    cursor += item.Bounds.Height + spacing;
+                }
+            }
+        }
+
+        if (rightItems.Count > 0)
+        {
+            var start = isHorizontal ? anchorItem.Bounds.Right : anchorItem.Bounds.Bottom;
+            var end = isHorizontal ? rightItems.Last().Bounds.Right : rightItems.Last().Bounds.Bottom;
+            var totalSize = rightItems.Sum(item => isHorizontal ? item.Bounds.Width : item.Bounds.Height);
+            var spacing = (end - start - totalSize) / rightItems.Count;
+            var cursor = start;
+
+            foreach (var item in rightItems)
+            {
+                if (isHorizontal)
+                {
+                    item.SetPosition(cursor, item.Bounds.Top);
+                    cursor += item.Bounds.Width + spacing;
+                }
+                else
+                {
+                    item.SetPosition(item.Bounds.Left, cursor);
+                    cursor += item.Bounds.Height + spacing;
+                }
+            }
+        }
+    }
+
+    private AlignmentItem? CreateAlignmentItem(SelectionEntry entry)
+        => entry.Type switch
+        {
+            SelectionItemType.TextBlock when entry.Item is ModelTextBlock block && TryGetAlignmentBounds(block, out var blockBounds)
+                => new AlignmentItem(entry, blockBounds, (x, y) =>
+                {
+                    block.TextLayout.OffsetX = (float)x;
+                    block.TextLayout.OffsetY = (float)y;
+                }),
+            SelectionItemType.Overlay when entry.Item is OverlayItem overlay && TryGetAlignmentBounds(overlay, out var overlayBounds)
+                => new AlignmentItem(entry, overlayBounds, (x, y) =>
+                {
+                    overlay.X = (int)Math.Round(x);
+                    overlay.Y = (int)Math.Round(y);
+                }),
+            _ => null
+        };
+
+    private Rect? GetLastSelectedBounds()
+    {
+        if (!TryGetLastSelectedItem(out var entry))
+        {
+            return null;
+        }
+
+        return entry.Type switch
+        {
+            SelectionItemType.TextBlock when entry.Item is ModelTextBlock block && TryGetAlignmentBounds(block, out var blockBounds) => blockBounds,
+            SelectionItemType.Overlay when entry.Item is OverlayItem overlay && TryGetAlignmentBounds(overlay, out var overlayBounds) => overlayBounds,
+            _ => null
+        };
+    }
+
+    private bool TryGetLastSelectedItem(out SelectionEntry entry)
+    {
+        for (var index = _selectionOrder.Count - 1; index >= 0; index--)
+        {
+            var candidate = _selectionOrder[index];
+            if ((candidate.Type == SelectionItemType.TextBlock && candidate.Item is ModelTextBlock block && _selectedTextBlocks.Contains(block))
+                || (candidate.Type == SelectionItemType.Overlay && candidate.Item is OverlayItem overlay && _selectedOverlays.Contains(overlay)))
+            {
+                entry = candidate;
+                return true;
+            }
+        }
+
+        entry = default;
+        return false;
+    }
+
+    private void TrackSelection(SelectionItemType type, object item)
+    {
+        RemoveTrackedSelection(type, item);
+        _selectionOrder.Add(new SelectionEntry(type, item));
+    }
+
+    private void RemoveTrackedSelection(SelectionItemType type, object item)
+    {
+        _selectionOrder.RemoveAll(entry => entry.Type == type && ReferenceEquals(entry.Item, item));
+    }
+
+    private IEnumerable<SelectionEntry> GetSelectedItems()
+    {
+        foreach (var entry in _selectionOrder)
+        {
+            if ((entry.Type == SelectionItemType.TextBlock && entry.Item is ModelTextBlock block && _selectedTextBlocks.Contains(block))
+                || (entry.Type == SelectionItemType.Overlay && entry.Item is OverlayItem overlay && _selectedOverlays.Contains(overlay)))
+            {
+                yield return entry;
+            }
+        }
+    }
+
+    private bool TryGetAlignmentBounds(ModelTextBlock block, out Rect bounds)
+    {
+        if (_textBlockBounds.TryGetValue(block, out bounds))
+        {
+            bounds = bounds.Deflate(8);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryGetAlignmentBounds(OverlayItem overlay, out Rect bounds)
+    {
+        if (_overlayBounds.TryGetValue(overlay, out bounds))
+        {
+            bounds = bounds.Deflate(6);
+            return true;
+        }
+
+        return false;
     }
 
     private Point ToRenderPoint(Point point)
@@ -993,4 +1310,27 @@ public partial class PreviewCanvas : UserControl
     private ResizeHandle _activeResizeHandle;
 
     private readonly record struct HitTestResult(DragTargetType TargetType, ModelTextBlock? TextBlock, OverlayItem? Overlay, ResizeHandle ResizeHandle);
+
+    private enum SelectionItemType
+    {
+        TextBlock,
+        Overlay
+    }
+
+    private readonly record struct SelectionEntry(SelectionItemType Type, object Item);
+
+    private sealed class AlignmentItem(SelectionEntry entry, Rect bounds, Action<double, double> setPosition)
+    {
+        public SelectionEntry Entry { get; } = entry;
+        public Rect Bounds { get; private set; } = bounds;
+
+        public void SetPosition(double x, double y)
+        {
+            Bounds = new Rect(x, y, Bounds.Width, Bounds.Height);
+            setPosition(x, y);
+        }
+
+        public bool Matches(SelectionEntry other)
+            => Entry.Type == other.Type && ReferenceEquals(Entry.Item, other.Item);
+    }
 }
