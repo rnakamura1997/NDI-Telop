@@ -272,6 +272,47 @@ public class RenderServiceTests
     }
 
     [Fact]
+    public void Render_WithOverlayWidthAndHeight_ShouldScaleOverlayToRequestedSize()
+    {
+        var service = new RenderService();
+        using var overlayBitmap = new SKBitmap(2, 2, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var overlayCanvas = new SKCanvas(overlayBitmap))
+        {
+            overlayCanvas.Clear(SKColors.White);
+        }
+
+        var overlayPath = Path.Combine(Path.GetTempPath(), $"overlay-scale-{Guid.NewGuid():N}.png");
+        try
+        {
+            using (var image = SKImage.FromBitmap(overlayBitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(overlayPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            var preset = new Preset
+            {
+                Background = new BackgroundStyle { Type = "transparent" },
+                TextLines = [],
+                Overlays = [new OverlayItem { Path = overlayPath, X = 1, Y = 1, Width = 4, Height = 3, Opacity = 1.0 }]
+            };
+
+            using var bitmap = service.Render(preset, 8, 8);
+
+            Assert.Equal((byte)255, bitmap.GetPixel(4, 3).Alpha);
+            Assert.Equal((byte)0, bitmap.GetPixel(5, 5).Alpha);
+        }
+        finally
+        {
+            if (File.Exists(overlayPath))
+            {
+                File.Delete(overlayPath);
+            }
+        }
+    }
+
+    [Fact]
     public void Render_WithTransparentOverlaysStacked_ShouldKeepExpectedColorBalance()
     {
         var service = new RenderService();

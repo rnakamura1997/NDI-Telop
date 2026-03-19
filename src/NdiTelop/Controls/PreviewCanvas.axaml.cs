@@ -19,6 +19,7 @@ public partial class PreviewCanvas : UserControl
 {
     private const string AssetDragDataFormat = "application/x-nditelop-asset-path";
     private const double HandleRadius = 5d;
+    private const double HandleHitRadius = 10d;
     private static readonly Pen SelectionPen = new(new SolidColorBrush(Color.Parse("#00B7FF")), 2);
     private static readonly IBrush SelectionFill = new SolidColorBrush(Color.Parse("#00B7FF"));
 
@@ -32,6 +33,8 @@ public partial class PreviewCanvas : UserControl
     private Point _dragStartPoint;
     private float _dragStartOffsetX;
     private float _dragStartOffsetY;
+    private Rect _dragStartOverlayBounds;
+    private double _dragAspectRatio = 1d;
     private DragTargetType _dragTargetType;
     private OverlayItem? _selectedOverlay;
 
@@ -161,12 +164,23 @@ public partial class PreviewCanvas : UserControl
 
         switch (hit.TargetType)
         {
+            case DragTargetType.OverlayResize when hit.Overlay != null && hit.ResizeHandle != ResizeHandle.None:
+                _selectedOverlay = hit.Overlay;
+                SelectedTextBlock = null;
+                _dragTargetType = DragTargetType.OverlayResize;
+                _dragStartOverlayBounds = GetOverlayRect(hit.Overlay);
+                _dragAspectRatio = GetOverlayAspectRatio(hit.Overlay, _dragStartOverlayBounds);
+                _activeResizeHandle = hit.ResizeHandle;
+                BeginDrag(e, point);
+                break;
+
             case DragTargetType.Overlay when hit.Overlay != null:
                 _selectedOverlay = hit.Overlay;
                 SelectedTextBlock = null;
                 _dragTargetType = DragTargetType.Overlay;
                 _dragStartOffsetX = hit.Overlay.X;
                 _dragStartOffsetY = hit.Overlay.Y;
+                _activeResizeHandle = ResizeHandle.None;
                 BeginDrag(e, point);
                 break;
 
@@ -176,6 +190,7 @@ public partial class PreviewCanvas : UserControl
                 _dragTargetType = DragTargetType.TextBlock;
                 _dragStartOffsetX = hit.TextBlock.TextLayout.OffsetX;
                 _dragStartOffsetY = hit.TextBlock.TextLayout.OffsetY;
+                _activeResizeHandle = ResizeHandle.None;
                 BeginDrag(e, point);
                 break;
 
@@ -183,6 +198,7 @@ public partial class PreviewCanvas : UserControl
                 _selectedOverlay = null;
                 SelectedTextBlock = null;
                 _dragTargetType = DragTargetType.None;
+                _activeResizeHandle = ResizeHandle.None;
                 _isDragging = false;
                 e.Pointer.Capture(null);
                 break;
@@ -212,6 +228,10 @@ public partial class PreviewCanvas : UserControl
             case DragTargetType.Overlay when _selectedOverlay != null:
                 _selectedOverlay.X = (int)Math.Round(_dragStartOffsetX + (point.X - _dragStartPoint.X));
                 _selectedOverlay.Y = (int)Math.Round(_dragStartOffsetY + (point.Y - _dragStartPoint.Y));
+                break;
+
+            case DragTargetType.OverlayResize when _selectedOverlay != null && _activeResizeHandle != ResizeHandle.None:
+                ResizeOverlay(_selectedOverlay, point, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 break;
         }
 
@@ -281,6 +301,7 @@ public partial class PreviewCanvas : UserControl
         {
             _isDragging = false;
             _dragTargetType = DragTargetType.None;
+            _activeResizeHandle = ResizeHandle.None;
             e.Pointer.Capture(null);
             InvalidateVisual();
         }
@@ -327,11 +348,18 @@ public partial class PreviewCanvas : UserControl
 
     private HitTestResult HitTestItem(Point point)
     {
+        if (_selectedOverlay != null
+            && _overlayBounds.TryGetValue(_selectedOverlay, out var selectedBounds)
+            && TryHitResizeHandle(selectedBounds.Deflate(6), point, out var resizeHandle))
+        {
+            return new HitTestResult(DragTargetType.OverlayResize, null, _selectedOverlay, resizeHandle);
+        }
+
         foreach (var overlay in Preset?.Overlays.Reverse() ?? Enumerable.Empty<OverlayItem>())
         {
             if (_overlayBounds.TryGetValue(overlay, out var bounds) && bounds.Contains(point))
             {
-                return new HitTestResult(DragTargetType.Overlay, null, overlay);
+                return new HitTestResult(DragTargetType.Overlay, null, overlay, ResizeHandle.None);
             }
         }
 
@@ -339,11 +367,11 @@ public partial class PreviewCanvas : UserControl
         {
             if (_textBlockBounds.TryGetValue(block, out var bounds) && bounds.Contains(point))
             {
-                return new HitTestResult(DragTargetType.TextBlock, block, null);
+                return new HitTestResult(DragTargetType.TextBlock, block, null, ResizeHandle.None);
             }
         }
 
-        return new HitTestResult(DragTargetType.None, null, null);
+        return new HitTestResult(DragTargetType.None, null, null, ResizeHandle.None);
     }
 
     private void UpdateBounds()
@@ -446,6 +474,92 @@ public partial class PreviewCanvas : UserControl
         yield return rect.TopRight;
         yield return rect.BottomLeft;
         yield return rect.BottomRight;
+    }
+
+    private void ResizeOverlay(OverlayItem overlay, Point point, bool preserveAspectRatio)
+    {
+        var anchor = GetAnchorPoint(_dragStartOverlayBounds, _activeResizeHandle);
+        var newBounds = preserveAspectRatio
+            ? CreateAspectLockedRect(anchor, point, _activeResizeHandle, _dragAspectRatio)
+            : CreateFreeformRect(anchor, point);
+
+        overlay.X = (int)Math.Round(newBounds.X);
+        overlay.Y = (int)Math.Round(newBounds.Y);
+        overlay.Width = Math.Max(1, (int)Math.Round(newBounds.Width));
+        overlay.Height = Math.Max(1, (int)Math.Round(newBounds.Height));
+    }
+
+    private static Rect CreateFreeformRect(Point anchor, Point point)
+    {
+        var left = Math.Min(anchor.X, point.X);
+        var top = Math.Min(anchor.Y, point.Y);
+        var width = Math.Max(1d, Math.Abs(point.X - anchor.X));
+        var height = Math.Max(1d, Math.Abs(point.Y - anchor.Y));
+        return new Rect(left, top, width, height);
+    }
+
+    private static Rect CreateAspectLockedRect(Point anchor, Point point, ResizeHandle handle, double aspectRatio)
+    {
+        aspectRatio = aspectRatio <= 0 ? 1d : aspectRatio;
+        var deltaX = point.X - anchor.X;
+        var deltaY = point.Y - anchor.Y;
+        var width = Math.Max(1d, Math.Abs(deltaX));
+        var height = Math.Max(1d, Math.Abs(deltaY));
+
+        if (height <= 0.001d || width / height > aspectRatio)
+        {
+            height = Math.Max(1d, width / aspectRatio);
+        }
+        else
+        {
+            width = Math.Max(1d, height * aspectRatio);
+        }
+
+        var x = handle is ResizeHandle.TopLeft or ResizeHandle.BottomLeft ? anchor.X - width : anchor.X;
+        var y = handle is ResizeHandle.TopLeft or ResizeHandle.TopRight ? anchor.Y - height : anchor.Y;
+        return new Rect(x, y, width, height);
+    }
+
+    private static Point GetAnchorPoint(Rect bounds, ResizeHandle handle) => handle switch
+    {
+        ResizeHandle.TopLeft => bounds.BottomRight,
+        ResizeHandle.TopRight => bounds.BottomLeft,
+        ResizeHandle.BottomLeft => bounds.TopRight,
+        ResizeHandle.BottomRight => bounds.TopLeft,
+        _ => bounds.TopLeft
+    };
+
+    private static bool TryHitResizeHandle(Rect rect, Point point, out ResizeHandle handle)
+    {
+        foreach (var candidate in EnumerateHandleCenters(rect))
+        {
+            if (Math.Abs(point.X - candidate.Center.X) <= HandleHitRadius && Math.Abs(point.Y - candidate.Center.Y) <= HandleHitRadius)
+            {
+                handle = candidate.Handle;
+                return true;
+            }
+        }
+
+        handle = ResizeHandle.None;
+        return false;
+    }
+
+    private static IEnumerable<(ResizeHandle Handle, Point Center)> EnumerateHandleCenters(Rect rect)
+    {
+        yield return (ResizeHandle.TopLeft, rect.TopLeft);
+        yield return (ResizeHandle.TopRight, rect.TopRight);
+        yield return (ResizeHandle.BottomLeft, rect.BottomLeft);
+        yield return (ResizeHandle.BottomRight, rect.BottomRight);
+    }
+
+    private static Rect GetOverlayRect(OverlayItem overlay) =>
+        new(overlay.X, overlay.Y, Math.Max(1, overlay.Width), Math.Max(1, overlay.Height));
+
+    private static double GetOverlayAspectRatio(OverlayItem overlay, Rect overlayBounds)
+    {
+        var width = Math.Max(1d, overlay.Width > 0 ? overlay.Width : overlayBounds.Width);
+        var height = Math.Max(1d, overlay.Height > 0 ? overlay.Height : overlayBounds.Height);
+        return width / height;
     }
 
     private void SubscribeToPreset(Preset? preset)
@@ -595,8 +709,20 @@ public partial class PreviewCanvas : UserControl
     {
         None,
         TextBlock,
-        Overlay
+        Overlay,
+        OverlayResize
     }
 
-    private readonly record struct HitTestResult(DragTargetType TargetType, ModelTextBlock? TextBlock, OverlayItem? Overlay);
+    private enum ResizeHandle
+    {
+        None,
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight
+    }
+
+    private ResizeHandle _activeResizeHandle;
+
+    private readonly record struct HitTestResult(DragTargetType TargetType, ModelTextBlock? TextBlock, OverlayItem? Overlay, ResizeHandle ResizeHandle);
 }

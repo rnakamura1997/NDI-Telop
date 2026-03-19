@@ -101,6 +101,42 @@ public class PresetServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SavePresetAsync_ShouldPersistOverlaySize()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var preset = new Preset
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = "Overlay Size Preset",
+            Overlays =
+            [
+                new OverlayItem
+                {
+                    Path = "assets/overlay.png",
+                    X = 12,
+                    Y = 34,
+                    Width = 456,
+                    Height = 123,
+                    Opacity = 1.0,
+                    IsVisible = true
+                }
+            ]
+        };
+
+        await service.SavePresetAsync(preset);
+
+        var reloaded = CreateService();
+        await reloaded.LoadPresetsAsync();
+
+        var savedPreset = reloaded.Presets.Single(p => p.Id == preset.Id);
+        var overlay = Assert.Single(savedPreset.Overlays);
+        Assert.Equal(456, overlay.Width);
+        Assert.Equal(123, overlay.Height);
+    }
+
+    [Fact]
     public async Task DeletePresetAsync_ShouldRemovePreset()
     {
         var service = CreateService();
