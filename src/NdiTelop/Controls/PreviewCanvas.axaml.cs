@@ -21,15 +21,24 @@ public partial class PreviewCanvas : UserControl
     private const double HandleRadius = 5d;
     private const double HandleHitRadius = 10d;
     private static readonly Pen SelectionPen = new(new SolidColorBrush(Color.Parse("#00B7FF")), 2);
+    private static readonly Pen GroupSelectionPen = new(new SolidColorBrush(Color.Parse("#7C4DFF")), 2, dashStyle: new DashStyle([6, 4], 0));
+    private static readonly Pen RubberBandPen = new(new SolidColorBrush(Color.Parse("#FFFFFF")), 1, dashStyle: new DashStyle([4, 4], 0));
     private static readonly IBrush SelectionFill = new SolidColorBrush(Color.Parse("#00B7FF"));
+    private static readonly IBrush GroupSelectionFill = new SolidColorBrush(Color.FromArgb(32, 124, 77, 255));
+    private static readonly IBrush RubberBandFill = new SolidColorBrush(Color.FromArgb(48, 255, 255, 255));
 
     private readonly RenderService _renderService;
     private readonly Dictionary<ModelTextBlock, Rect> _textBlockBounds = [];
     private readonly Dictionary<OverlayItem, Rect> _overlayBounds = [];
     private readonly List<ModelTextBlock> _subscribedBlocks = [];
     private readonly List<OverlayItem> _subscribedOverlays = [];
+    private readonly HashSet<ModelTextBlock> _selectedTextBlocks = [];
+    private readonly HashSet<OverlayItem> _selectedOverlays = [];
+    private readonly Dictionary<ModelTextBlock, Point> _dragStartTextPositions = [];
+    private readonly Dictionary<OverlayItem, Point> _dragStartOverlayPositions = [];
     private SKBitmap? _renderedBitmap;
     private bool _isDragging;
+    private bool _isRubberBandSelecting;
     private Point _dragStartPoint;
     private float _dragStartOffsetX;
     private float _dragStartOffsetY;
@@ -37,6 +46,7 @@ public partial class PreviewCanvas : UserControl
     private double _dragAspectRatio = 1d;
     private DragTargetType _dragTargetType;
     private OverlayItem? _selectedOverlay;
+    private Rect? _rubberBandRect;
 
     public static readonly DirectProperty<PreviewCanvas, Preset?> PresetProperty =
         AvaloniaProperty.RegisterDirect<PreviewCanvas, Preset?>(
@@ -138,14 +148,11 @@ public partial class PreviewCanvas : UserControl
             using var encoded = _renderedBitmap.Encode(SKEncodedImageFormat.Png, 100);
             using var image = new Avalonia.Media.Imaging.Bitmap(encoded.AsStream());
             context.DrawImage(image, new Rect(0, 0, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight));
+            DrawSelections(context);
 
-            if (_selectedOverlay != null && _overlayBounds.TryGetValue(_selectedOverlay, out var selectedOverlayBounds))
+            if (_rubberBandRect is { } rubberBandRect)
             {
-                DrawSelection(context, selectedOverlayBounds);
-            }
-            else if (SelectedTextBlock != null && _textBlockBounds.TryGetValue(SelectedTextBlock, out var selectedTextBounds))
-            {
-                DrawSelection(context, selectedTextBounds);
+                context.DrawRectangle(RubberBandFill, RubberBandPen, rubberBandRect);
             }
         }
     }
@@ -159,14 +166,15 @@ public partial class PreviewCanvas : UserControl
             return;
         }
 
+        var modifiers = e.KeyModifiers;
+        var allowMultiSelect = modifiers.HasFlag(KeyModifiers.Control) || modifiers.HasFlag(KeyModifiers.Shift);
         var point = ToRenderPoint(e.GetPosition(this));
         var hit = HitTestItem(point);
 
         switch (hit.TargetType)
         {
-            case DragTargetType.OverlayResize when hit.Overlay != null && hit.ResizeHandle != ResizeHandle.None:
-                _selectedOverlay = hit.Overlay;
-                SelectedTextBlock = null;
+            case DragTargetType.OverlayResize when hit.Overlay != null && hit.ResizeHandle != ResizeHandle.None && _selectedOverlays.Count == 1 && _selectedTextBlocks.Count == 0:
+                SelectOverlay(hit.Overlay, append: false);
                 _dragTargetType = DragTargetType.OverlayResize;
                 _dragStartOverlayBounds = GetOverlayRect(hit.Overlay);
                 _dragAspectRatio = GetOverlayAspectRatio(hit.Overlay, _dragStartOverlayBounds);
@@ -175,32 +183,36 @@ public partial class PreviewCanvas : UserControl
                 break;
 
             case DragTargetType.Overlay when hit.Overlay != null:
-                _selectedOverlay = hit.Overlay;
-                SelectedTextBlock = null;
-                _dragTargetType = DragTargetType.Overlay;
+                UpdateSelectionForOverlay(hit.Overlay, allowMultiSelect);
+                _dragTargetType = _selectedOverlays.Count + _selectedTextBlocks.Count > 1 ? DragTargetType.Group : DragTargetType.Overlay;
                 _dragStartOffsetX = hit.Overlay.X;
                 _dragStartOffsetY = hit.Overlay.Y;
                 _activeResizeHandle = ResizeHandle.None;
+                CaptureDragSelectionSnapshot();
                 BeginDrag(e, point);
                 break;
 
             case DragTargetType.TextBlock when hit.TextBlock != null:
-                _selectedOverlay = null;
-                SelectedTextBlock = hit.TextBlock;
-                _dragTargetType = DragTargetType.TextBlock;
+                UpdateSelectionForTextBlock(hit.TextBlock, allowMultiSelect);
+                _dragTargetType = _selectedOverlays.Count + _selectedTextBlocks.Count > 1 ? DragTargetType.Group : DragTargetType.TextBlock;
                 _dragStartOffsetX = hit.TextBlock.TextLayout.OffsetX;
                 _dragStartOffsetY = hit.TextBlock.TextLayout.OffsetY;
                 _activeResizeHandle = ResizeHandle.None;
+                CaptureDragSelectionSnapshot();
                 BeginDrag(e, point);
                 break;
 
             default:
-                _selectedOverlay = null;
-                SelectedTextBlock = null;
-                _dragTargetType = DragTargetType.None;
+                _dragTargetType = DragTargetType.RubberBand;
                 _activeResizeHandle = ResizeHandle.None;
-                _isDragging = false;
-                e.Pointer.Capture(null);
+                _isRubberBandSelecting = true;
+                _rubberBandRect = new Rect(point, point);
+                if (!allowMultiSelect)
+                {
+                    ClearSelection();
+                }
+
+                BeginDrag(e, point);
                 break;
         }
 
@@ -230,8 +242,16 @@ public partial class PreviewCanvas : UserControl
                 _selectedOverlay.Y = (int)Math.Round(_dragStartOffsetY + (point.Y - _dragStartPoint.Y));
                 break;
 
+            case DragTargetType.Group:
+                MoveSelectedItems(point.X - _dragStartPoint.X, point.Y - _dragStartPoint.Y);
+                break;
+
             case DragTargetType.OverlayResize when _selectedOverlay != null && _activeResizeHandle != ResizeHandle.None:
                 ResizeOverlay(_selectedOverlay, point, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                break;
+
+            case DragTargetType.RubberBand:
+                _rubberBandRect = CreateNormalizedRect(_dragStartPoint, point);
                 break;
         }
 
@@ -242,6 +262,12 @@ public partial class PreviewCanvas : UserControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+
+        if (_isRubberBandSelecting && _rubberBandRect is { } rubberBandRect)
+        {
+            ApplyRubberBandSelection(rubberBandRect, e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+        }
+
         EndDrag(e);
     }
 
@@ -249,7 +275,9 @@ public partial class PreviewCanvas : UserControl
     {
         base.OnPointerCaptureLost(e);
         _isDragging = false;
+        _isRubberBandSelecting = false;
         _dragTargetType = DragTargetType.None;
+        _rubberBandRect = null;
     }
 
     private void PreviewCanvas_OnDragOver(object? sender, DragEventArgs e)
@@ -274,8 +302,11 @@ public partial class PreviewCanvas : UserControl
 
         var point = ToRenderPoint(e.GetPosition(this));
         viewModel.AddOverlayFromAsset(relativePath, point.X, point.Y, centerOnDrop: true);
-        _selectedOverlay = Preset?.Overlays.LastOrDefault();
-        SelectedTextBlock = null;
+        if (Preset?.Overlays.LastOrDefault() is { } overlay)
+        {
+            SelectOverlay(overlay, append: false);
+        }
+
         InvalidateVisual();
         e.Handled = true;
     }
@@ -300,16 +331,50 @@ public partial class PreviewCanvas : UserControl
         if (_isDragging)
         {
             _isDragging = false;
+            _isRubberBandSelecting = false;
             _dragTargetType = DragTargetType.None;
             _activeResizeHandle = ResizeHandle.None;
+            _rubberBandRect = null;
+            _dragStartTextPositions.Clear();
+            _dragStartOverlayPositions.Clear();
             e.Pointer.Capture(null);
             InvalidateVisual();
         }
     }
 
-    private void DrawSelection(DrawingContext context, Rect bounds)
+    private void DrawSelections(DrawingContext context)
     {
-        context.DrawRectangle(null, SelectionPen, bounds);
+        foreach (var overlay in _selectedOverlays)
+        {
+            if (_overlayBounds.TryGetValue(overlay, out var bounds))
+            {
+                DrawSelection(context, bounds, showHandles: _selectedOverlays.Count == 1 && _selectedTextBlocks.Count == 0 && overlay == _selectedOverlay, isGroupMember: SelectionCount > 1);
+            }
+        }
+
+        foreach (var block in _selectedTextBlocks)
+        {
+            if (_textBlockBounds.TryGetValue(block, out var bounds))
+            {
+                DrawSelection(context, bounds, showHandles: false, isGroupMember: SelectionCount > 1);
+            }
+        }
+
+        if (SelectionCount > 1 && TryGetSelectionBounds(out var groupBounds))
+        {
+            context.DrawRectangle(GroupSelectionFill, GroupSelectionPen, groupBounds.Inflate(8));
+        }
+    }
+
+    private void DrawSelection(DrawingContext context, Rect bounds, bool showHandles, bool isGroupMember)
+    {
+        var pen = isGroupMember ? GroupSelectionPen : SelectionPen;
+        context.DrawRectangle(null, pen, bounds);
+        if (!showHandles)
+        {
+            return;
+        }
+
         foreach (var handleCenter in GetHandleCenters(bounds))
         {
             context.DrawEllipse(SelectionFill, SelectionPen, handleCenter, HandleRadius, HandleRadius);
@@ -318,19 +383,209 @@ public partial class PreviewCanvas : UserControl
 
     private void EnsureSelectionBelongsToPreset()
     {
-        if (SelectedTextBlock != null && Preset?.TextBlocks.Contains(SelectedTextBlock) != true)
+        _selectedTextBlocks.RemoveWhere(block => Preset?.TextBlocks.Contains(block) != true);
+        _selectedOverlays.RemoveWhere(overlay => Preset?.Overlays.Contains(overlay) != true);
+
+        if (SelectedTextBlock != null && !_selectedTextBlocks.Contains(SelectedTextBlock))
+        {
+            SelectedTextBlock = _selectedTextBlocks.FirstOrDefault();
+        }
+
+        if (_selectedOverlay != null && !_selectedOverlays.Contains(_selectedOverlay))
+        {
+            _selectedOverlay = _selectedOverlays.FirstOrDefault();
+        }
+
+        if (SelectionCount == 0)
+        {
+            if (Preset?.TextBlocks.FirstOrDefault() is { } block)
+            {
+                SelectTextBlock(block, append: false);
+            }
+            else
+            {
+                SelectedTextBlock = null;
+                _selectedOverlay = null;
+            }
+        }
+    }
+
+    private int SelectionCount => _selectedTextBlocks.Count + _selectedOverlays.Count;
+
+    private void ClearSelection()
+    {
+        _selectedTextBlocks.Clear();
+        _selectedOverlays.Clear();
+        SelectedTextBlock = null;
+        _selectedOverlay = null;
+    }
+
+    private void SelectTextBlock(ModelTextBlock block, bool append)
+    {
+        if (!append)
+        {
+            _selectedTextBlocks.Clear();
+            _selectedOverlays.Clear();
+        }
+
+        _selectedTextBlocks.Add(block);
+        SelectedTextBlock = block;
+        _selectedOverlay = null;
+    }
+
+    private void SelectOverlay(OverlayItem overlay, bool append)
+    {
+        if (!append)
+        {
+            _selectedTextBlocks.Clear();
+            _selectedOverlays.Clear();
+        }
+
+        _selectedOverlays.Add(overlay);
+        _selectedOverlay = overlay;
+        SelectedTextBlock = null;
+    }
+
+    private void UpdateSelectionForTextBlock(ModelTextBlock block, bool allowMultiSelect)
+    {
+        if (!allowMultiSelect)
+        {
+            SelectTextBlock(block, append: false);
+            return;
+        }
+
+        if (!_selectedTextBlocks.Add(block))
+        {
+            _selectedTextBlocks.Remove(block);
+        }
+
+        if (_selectedTextBlocks.Count == 0 && _selectedOverlays.Count == 0)
+        {
+            SelectedTextBlock = null;
+            return;
+        }
+
+        SelectedTextBlock = _selectedTextBlocks.Contains(block) ? block : _selectedTextBlocks.LastOrDefault();
+        _selectedOverlay = _selectedOverlays.LastOrDefault();
+    }
+
+    private void UpdateSelectionForOverlay(OverlayItem overlay, bool allowMultiSelect)
+    {
+        if (!allowMultiSelect)
+        {
+            SelectOverlay(overlay, append: false);
+            return;
+        }
+
+        if (!_selectedOverlays.Add(overlay))
+        {
+            _selectedOverlays.Remove(overlay);
+        }
+
+        if (_selectedTextBlocks.Count == 0 && _selectedOverlays.Count == 0)
+        {
+            _selectedOverlay = null;
+            SelectedTextBlock = null;
+            return;
+        }
+
+        _selectedOverlay = _selectedOverlays.Contains(overlay) ? overlay : _selectedOverlays.LastOrDefault();
+        if (_selectedOverlay != null)
         {
             SelectedTextBlock = null;
         }
-
-        if (_selectedOverlay != null && Preset?.Overlays.Contains(_selectedOverlay) != true)
+        else
         {
-            _selectedOverlay = null;
+            SelectedTextBlock = _selectedTextBlocks.LastOrDefault();
+        }
+    }
+
+    private void CaptureDragSelectionSnapshot()
+    {
+        _dragStartTextPositions.Clear();
+        _dragStartOverlayPositions.Clear();
+
+        foreach (var block in _selectedTextBlocks)
+        {
+            _dragStartTextPositions[block] = new Point(block.TextLayout.OffsetX, block.TextLayout.OffsetY);
         }
 
-        if (_selectedOverlay == null && SelectedTextBlock == null)
+        foreach (var overlay in _selectedOverlays)
         {
-            SelectedTextBlock = Preset?.TextBlocks.FirstOrDefault();
+            _dragStartOverlayPositions[overlay] = new Point(overlay.X, overlay.Y);
+        }
+    }
+
+    private void MoveSelectedItems(double deltaX, double deltaY)
+    {
+        foreach (var (block, start) in _dragStartTextPositions)
+        {
+            block.TextLayout.OffsetX = (float)(start.X + deltaX);
+            block.TextLayout.OffsetY = (float)(start.Y + deltaY);
+        }
+
+        foreach (var (overlay, start) in _dragStartOverlayPositions)
+        {
+            overlay.X = (int)Math.Round(start.X + deltaX);
+            overlay.Y = (int)Math.Round(start.Y + deltaY);
+        }
+    }
+
+    private bool TryGetSelectionBounds(out Rect bounds)
+    {
+        bounds = default;
+        var hasBounds = false;
+
+        foreach (var overlay in _selectedOverlays)
+        {
+            if (_overlayBounds.TryGetValue(overlay, out var overlayBounds))
+            {
+                bounds = hasBounds ? bounds.Union(overlayBounds) : overlayBounds;
+                hasBounds = true;
+            }
+        }
+
+        foreach (var block in _selectedTextBlocks)
+        {
+            if (_textBlockBounds.TryGetValue(block, out var textBounds))
+            {
+                bounds = hasBounds ? bounds.Union(textBounds) : textBounds;
+                hasBounds = true;
+            }
+        }
+
+        return hasBounds;
+    }
+
+    private void ApplyRubberBandSelection(Rect selectionRect, bool append)
+    {
+        UpdateBounds();
+        if (!append)
+        {
+            ClearSelection();
+        }
+
+        foreach (var overlay in Preset?.Overlays ?? [])
+        {
+            if (_overlayBounds.TryGetValue(overlay, out var bounds) && selectionRect.Intersects(bounds))
+            {
+                _selectedOverlays.Add(overlay);
+                _selectedOverlay = overlay;
+            }
+        }
+
+        foreach (var block in Preset?.TextBlocks ?? [])
+        {
+            if (_textBlockBounds.TryGetValue(block, out var bounds) && selectionRect.Intersects(bounds))
+            {
+                _selectedTextBlocks.Add(block);
+                SelectedTextBlock = block;
+            }
+        }
+
+        if (_selectedOverlays.Count > 0)
+        {
+            SelectedTextBlock = null;
         }
     }
 
@@ -349,6 +604,8 @@ public partial class PreviewCanvas : UserControl
     private HitTestResult HitTestItem(Point point)
     {
         if (_selectedOverlay != null
+            && _selectedOverlays.Count == 1
+            && _selectedTextBlocks.Count == 0
             && _overlayBounds.TryGetValue(_selectedOverlay, out var selectedBounds)
             && TryHitResizeHandle(selectedBounds.Deflate(6), point, out var resizeHandle))
         {
@@ -487,6 +744,15 @@ public partial class PreviewCanvas : UserControl
         overlay.Y = (int)Math.Round(newBounds.Y);
         overlay.Width = Math.Max(1, (int)Math.Round(newBounds.Width));
         overlay.Height = Math.Max(1, (int)Math.Round(newBounds.Height));
+    }
+
+    public static Rect CreateNormalizedRect(Point start, Point end)
+    {
+        var left = Math.Min(start.X, end.X);
+        var top = Math.Min(start.Y, end.Y);
+        var width = Math.Abs(end.X - start.X);
+        var height = Math.Abs(end.Y - start.Y);
+        return new Rect(left, top, width, height);
     }
 
     private static Rect CreateFreeformRect(Point anchor, Point point)
@@ -710,7 +976,9 @@ public partial class PreviewCanvas : UserControl
         None,
         TextBlock,
         Overlay,
-        OverlayResize
+        Group,
+        OverlayResize,
+        RubberBand
     }
 
     private enum ResizeHandle
