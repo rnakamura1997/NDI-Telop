@@ -31,7 +31,11 @@ internal static class CsvPresetCodec
         "AnimationSpeedSeconds",
         "AnimationEasing",
         "TextLinesJson",
-        "OverlaysJson"
+        "OverlaysJson",
+        "TextHorizontalAlignment",
+        "TextVerticalAlignment",
+        "TextOffsetX",
+        "TextOffsetY"
     ];
 
     public static async Task WriteAsync(string filePath, IReadOnlyList<Preset> presets)
@@ -56,7 +60,11 @@ internal static class CsvPresetCodec
                 preset.Animation.SpeedSeconds.ToString(CultureInfo.InvariantCulture),
                 preset.Animation.Easing,
                 JsonSerializer.Serialize(preset.TextLines, JsonOptions),
-                JsonSerializer.Serialize(preset.Overlays, JsonOptions)
+                JsonSerializer.Serialize(preset.Overlays, JsonOptions),
+                preset.TextLayout.HorizontalAlignment.ToString(),
+                preset.TextLayout.VerticalAlignment.ToString(),
+                preset.TextLayout.OffsetX.ToString(CultureInfo.InvariantCulture),
+                preset.TextLayout.OffsetY.ToString(CultureInfo.InvariantCulture)
             };
 
             await writer.WriteLineAsync(ToCsvLine(row));
@@ -109,7 +117,7 @@ internal static class CsvPresetCodec
                 continue;
             }
 
-            if (tokens.Count < Header.Length)
+            if (tokens.Count < 12)
             {
                 continue;
             }
@@ -153,6 +161,34 @@ internal static class CsvPresetCodec
             var textLines = JsonSerializer.Deserialize<List<TextLine>>(tokens[10], JsonOptions) ?? [];
             var overlays = JsonSerializer.Deserialize<List<OverlayItem>>(tokens[11], JsonOptions) ?? [];
 
+            var horizontalAlignment = HorizontalTextAlignment.Center;
+            var verticalAlignment = VerticalTextAlignment.Center;
+            var offsetX = 0f;
+            var offsetY = 0f;
+
+            if (tokens.Count >= 16)
+            {
+                if (!Enum.TryParse<HorizontalTextAlignment>(tokens[12], true, out horizontalAlignment))
+                {
+                    horizontalAlignment = HorizontalTextAlignment.Center;
+                }
+
+                if (!Enum.TryParse<VerticalTextAlignment>(tokens[13], true, out verticalAlignment))
+                {
+                    verticalAlignment = VerticalTextAlignment.Center;
+                }
+
+                if (!float.TryParse(tokens[14], NumberStyles.Float, CultureInfo.InvariantCulture, out offsetX))
+                {
+                    return null;
+                }
+
+                if (!float.TryParse(tokens[15], NumberStyles.Float, CultureInfo.InvariantCulture, out offsetY))
+                {
+                    return null;
+                }
+            }
+
             return new Preset
             {
                 Id = id,
@@ -172,6 +208,13 @@ internal static class CsvPresetCodec
                     OutType = tokens[7],
                     SpeedSeconds = animationSpeedSeconds,
                     Easing = tokens[9]
+                },
+                TextLayout = new TextLayoutSettings
+                {
+                    HorizontalAlignment = horizontalAlignment,
+                    VerticalAlignment = verticalAlignment,
+                    OffsetX = offsetX,
+                    OffsetY = offsetY
                 }
             };
         }

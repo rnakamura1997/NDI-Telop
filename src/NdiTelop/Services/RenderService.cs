@@ -23,7 +23,7 @@ public class RenderService : IRenderService
         canvas.Clear(SKColors.Transparent);
 
         DrawBackground(canvas, preset.Background, width, height);
-        DrawTextLines(canvas, preset.TextLines, preset.TextStyle, width, height);
+        DrawTextLines(canvas, preset.TextLines, preset.TextStyle, preset.TextLayout, width, height);
         DrawOverlays(canvas, preset.Overlays, width, height);
 
         return bitmap;
@@ -178,21 +178,34 @@ public class RenderService : IRenderService
         }
     }
 
-    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, int width, int height)
+    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, TextLayoutSettings? layout, int width, int height)
     {
         if (lines.Count == 0)
         {
             return;
         }
 
-        var totalTextHeight = lines.Sum(line => GetEffectiveFontSize(line, style) + 10);
-        var y = (height - totalTextHeight) / 2f;
+        const float lineSpacing = 10f;
+        var measuredLines = new List<MeasuredTextLine>(lines.Count);
 
         foreach (var line in lines)
         {
             var fontFamily = GetEffectiveFontFamily(line, style);
             var fontSize = GetEffectiveFontSize(line, style);
-            var fillColor = ParseColorOrDefault(GetEffectiveColor(line, style), SKColors.White);
+            using var typeface = SKTypeface.FromFamilyName(fontFamily) ?? SKTypeface.Default;
+            using var font = new SKFont(typeface, fontSize);
+            font.MeasureText(line.Text, out var textBounds);
+
+            measuredLines.Add(new MeasuredTextLine(line, fontFamily, fontSize, textBounds));
+        }
+
+        var totalTextHeight = measuredLines.Sum(line => line.Bounds.Height) + lineSpacing * Math.Max(0, measuredLines.Count - 1);
+        var blockTop = GetAlignedTop(height, totalTextHeight, layout) + (layout?.OffsetY ?? 0f);
+        var currentTop = blockTop;
+
+        foreach (var measuredLine in measuredLines)
+        {
+            var fillColor = ParseColorOrDefault(GetEffectiveColor(measuredLine.Line, style), SKColors.White);
             var outlineThickness = Math.Max(0f, style?.OutlineThickness ?? 0f);
             var outlineColor = ParseColorOrDefault(style?.OutlineColor, SKColors.Black);
             var shadowOffsetX = style?.ShadowOffsetX ?? 0f;
@@ -200,13 +213,11 @@ public class RenderService : IRenderService
             var shadowBlur = Math.Max(0f, style?.ShadowBlur ?? 0f);
             var shadowColor = ParseColorOrDefault(style?.ShadowColor, SKColors.Transparent);
 
-            using var typeface = SKTypeface.FromFamilyName(fontFamily) ?? SKTypeface.Default;
-            using var font = new SKFont(typeface, fontSize);
+            using var typeface = SKTypeface.FromFamilyName(measuredLine.FontFamily) ?? SKTypeface.Default;
+            using var font = new SKFont(typeface, measuredLine.FontSize);
 
-            var textBounds = new SKRect();
-            font.MeasureText(line.Text, out textBounds);
-            var x = (width - textBounds.Width) / 2f - textBounds.Left;
-            var textBaseline = y + font.Size;
+            var x = GetAlignedX(width, measuredLine.Bounds, layout) + (layout?.OffsetX ?? 0f);
+            var textBaseline = currentTop - measuredLine.Bounds.Top;
 
             if (shadowColor.Alpha > 0 && (shadowBlur > 0f || shadowOffsetX != 0f || shadowOffsetY != 0f))
             {
@@ -216,7 +227,7 @@ public class RenderService : IRenderService
                     IsAntialias = true,
                     MaskFilter = shadowBlur > 0f ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, shadowBlur) : null
                 };
-                canvas.DrawText(line.Text, x + shadowOffsetX, textBaseline + shadowOffsetY, font, shadowPaint);
+                canvas.DrawText(measuredLine.Line.Text, x + shadowOffsetX, textBaseline + shadowOffsetY, font, shadowPaint);
             }
 
             if (outlineThickness > 0f)
@@ -229,7 +240,7 @@ public class RenderService : IRenderService
                     StrokeWidth = outlineThickness,
                     StrokeJoin = SKStrokeJoin.Round
                 };
-                canvas.DrawText(line.Text, x, textBaseline, font, outlinePaint);
+                canvas.DrawText(measuredLine.Line.Text, x, textBaseline, font, outlinePaint);
             }
 
             using var fillPaint = new SKPaint
@@ -238,10 +249,28 @@ public class RenderService : IRenderService
                 IsAntialias = true,
                 Style = SKPaintStyle.Fill
             };
-            canvas.DrawText(line.Text, x, textBaseline, font, fillPaint);
-            y += font.Size + 10;
+            canvas.DrawText(measuredLine.Line.Text, x, textBaseline, font, fillPaint);
+            currentTop += measuredLine.Bounds.Height + lineSpacing;
         }
     }
+
+    private static float GetAlignedTop(int height, float totalTextHeight, TextLayoutSettings? layout)
+        => (layout?.VerticalAlignment ?? VerticalTextAlignment.Center) switch
+        {
+            VerticalTextAlignment.Top => 0f,
+            VerticalTextAlignment.Bottom => height - totalTextHeight,
+            _ => (height - totalTextHeight) / 2f
+        };
+
+    private static float GetAlignedX(int width, SKRect textBounds, TextLayoutSettings? layout)
+        => (layout?.HorizontalAlignment ?? HorizontalTextAlignment.Center) switch
+        {
+            HorizontalTextAlignment.Left => -textBounds.Left,
+            HorizontalTextAlignment.Right => width - textBounds.Right,
+            _ => (width - textBounds.Width) / 2f - textBounds.Left
+        };
+
+    private readonly record struct MeasuredTextLine(TextLine Line, string FontFamily, float FontSize, SKRect Bounds);
 
     private static string GetEffectiveFontFamily(TextLine line, TextStyleSettings? style)
         => !string.IsNullOrWhiteSpace(style?.FontFamily) ? style.FontFamily : line.FontFamily;

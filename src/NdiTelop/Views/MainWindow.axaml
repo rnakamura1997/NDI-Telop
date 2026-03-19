@@ -123,6 +123,22 @@
         </Grid>
       </StackPanel>
 
+      <TextBlock Text="Text Layout" FontWeight="SemiBold" Margin="0,4,0,0" />
+      <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Horizontal" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="0" Grid.Column="1"
+                  ItemsSource="{Binding AvailableHorizontalAlignments}"
+                  SelectedItem="{Binding SelectedPreset.TextLayout.HorizontalAlignment, Mode=TwoWay}" />
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Vertical" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="1" Grid.Column="1"
+                  ItemsSource="{Binding AvailableVerticalAlignments}"
+                  SelectedItem="{Binding SelectedPreset.TextLayout.VerticalAlignment, Mode=TwoWay}" />
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Offset X" VerticalAlignment="Center" />
+        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPreset.TextLayout.OffsetX, Mode=TwoWay}" Watermark="Pixels" />
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Offset Y" VerticalAlignment="Center" />
+        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPreset.TextLayout.OffsetY, Mode=TwoWay}" Watermark="Pixels" />
+      </Grid>
+
       <TextBlock Text="Transition Type:" />
       <ComboBox ItemsSource="{Binding AvailableTransitionTypes}"
                 SelectedItem="{Binding SelectedPreset.Animation.InType, Mode=TwoWay}" />

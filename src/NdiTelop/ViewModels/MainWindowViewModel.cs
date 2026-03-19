@@ -48,6 +48,7 @@ public partial class MainWindowViewModel : ObservableObject
         AttachOverlayListeners(value);
         AttachTextLineListeners(value);
         AttachTextStyleListeners(value);
+        AttachTextLayoutListeners(value);
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -112,6 +113,21 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _shouldScrollLogsToEnd;
+
+
+    public ObservableCollection<HorizontalTextAlignment> AvailableHorizontalAlignments { get; } =
+    [
+        HorizontalTextAlignment.Left,
+        HorizontalTextAlignment.Center,
+        HorizontalTextAlignment.Right
+    ];
+
+    public ObservableCollection<VerticalTextAlignment> AvailableVerticalAlignments { get; } =
+    [
+        VerticalTextAlignment.Top,
+        VerticalTextAlignment.Center,
+        VerticalTextAlignment.Bottom
+    ];
 
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
@@ -220,6 +236,30 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     private void TextLine_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private Preset? _textLayoutBoundPreset;
+
+    private void AttachTextLayoutListeners(Preset? preset)
+    {
+        if (_textLayoutBoundPreset?.TextLayout != null)
+        {
+            _textLayoutBoundPreset.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+        }
+
+        _textLayoutBoundPreset = preset;
+
+        if (_textLayoutBoundPreset?.TextLayout == null)
+        {
+            return;
+        }
+
+        _textLayoutBoundPreset.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
+    }
+
+    private void TextLayout_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         OnPropertyChanged(nameof(SelectedPreset));
     }
@@ -734,6 +774,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         preset.TextStyle ??= new TextStyleSettings();
+        preset.TextLayout ??= new TextLayoutSettings();
 
         if (string.IsNullOrWhiteSpace(preset.TextStyle.FontFamily))
         {

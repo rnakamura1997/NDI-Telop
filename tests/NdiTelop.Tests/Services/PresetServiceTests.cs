@@ -148,6 +148,7 @@ public class PresetServiceTests : IDisposable
             Name = "My Preset",
             AutoClearSeconds = 9,
             TextStyle = new TextStyleSettings { FontFamily = "Arial", FontSize = 54, Color = "#F0F0F0", OutlineThickness = 3, OutlineColor = "#101010", ShadowOffsetX = 4, ShadowOffsetY = 6, ShadowBlur = 8, ShadowColor = "#66000000" },
+            TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Right, VerticalAlignment = VerticalTextAlignment.Bottom, OffsetX = 32, OffsetY = -18 },
             Background = new BackgroundStyle { Type = "image", AssetPath = "assets/bg.png", Alpha = 0.75, Color = "#112233" },
             Animation = new AnimationConfig { InType = "fade", OutType = "wipe", SpeedSeconds = 1.2f, Easing = "EaseInOut" },
             TextLines =
@@ -179,6 +180,10 @@ public class PresetServiceTests : IDisposable
         Assert.Equal(source.TextStyle.ShadowOffsetY, duplicated.TextStyle.ShadowOffsetY);
         Assert.Equal(source.TextStyle.ShadowBlur, duplicated.TextStyle.ShadowBlur);
         Assert.Equal(source.TextStyle.ShadowColor, duplicated.TextStyle.ShadowColor);
+        Assert.Equal(source.TextLayout.HorizontalAlignment, duplicated.TextLayout.HorizontalAlignment);
+        Assert.Equal(source.TextLayout.VerticalAlignment, duplicated.TextLayout.VerticalAlignment);
+        Assert.Equal(source.TextLayout.OffsetX, duplicated.TextLayout.OffsetX);
+        Assert.Equal(source.TextLayout.OffsetY, duplicated.TextLayout.OffsetY);
         Assert.Equal(source.Background.Type, duplicated.Background.Type);
         Assert.Equal(source.Background.AssetPath, duplicated.Background.AssetPath);
         Assert.Equal(source.Background.Alpha, duplicated.Background.Alpha);
@@ -297,8 +302,8 @@ public class PresetServiceTests : IDisposable
         var csvPath = Path.Combine(_testDataDir, "import.csv");
         var textLinesJson = "[{\"Text\":\"Imported\",\"FontFamily\":\"Meiryo\",\"FontSize\":48,\"Color\":\"#FFFFFF\"}]";
         var overlaysJson = "[]";
-        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson";
-        var row = $"imported1,Imported Preset,5,solid,#000000,0.25,fade,cut,0.3,Linear,\"{textLinesJson.Replace("\"", "\"\"")}\",\"{overlaysJson}\"";
+        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson,TextHorizontalAlignment,TextVerticalAlignment,TextOffsetX,TextOffsetY";
+        var row = $"imported1,Imported Preset,5,solid,#000000,0.25,fade,cut,0.3,Linear,\"{textLinesJson.Replace("\"", "\"\"")}\",\"{overlaysJson}\",Right,Bottom,24,-12";
         await File.WriteAllTextAsync(csvPath, header + Environment.NewLine + row);
 
         await service.ImportFromCsvAsync(csvPath);
@@ -309,6 +314,10 @@ public class PresetServiceTests : IDisposable
         Assert.Equal(5, imported.AutoClearSeconds);
         Assert.Single(imported.TextLines);
         Assert.Equal("Imported", imported.TextLines[0].Text);
+        Assert.Equal(HorizontalTextAlignment.Right, imported.TextLayout.HorizontalAlignment);
+        Assert.Equal(VerticalTextAlignment.Bottom, imported.TextLayout.VerticalAlignment);
+        Assert.Equal(24, imported.TextLayout.OffsetX);
+        Assert.Equal(-12, imported.TextLayout.OffsetY);
     }
 
     [Fact]
@@ -324,7 +333,8 @@ public class PresetServiceTests : IDisposable
             AutoClearSeconds = 9,
             Background = new BackgroundStyle { Type = "solid", Color = "#010203", Alpha = 0.3 },
             Animation = new AnimationConfig { InType = "wipe", OutType = "cut", SpeedSeconds = 0.9f, Easing = "Linear" },
-            TextLines = [new TextLine { Text = "RT" }]
+            TextLines = [new TextLine { Text = "RT" }],
+            TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Left, VerticalAlignment = VerticalTextAlignment.Top, OffsetX = 15, OffsetY = 25 }
         };
         await exporter.SavePresetAsync(preset);
 
@@ -340,6 +350,10 @@ public class PresetServiceTests : IDisposable
         Assert.Equal("Round Trip", imported!.Name);
         Assert.Equal(9, imported.AutoClearSeconds);
         Assert.Equal("RT", imported.TextLines[0].Text);
+        Assert.Equal(HorizontalTextAlignment.Left, imported.TextLayout.HorizontalAlignment);
+        Assert.Equal(VerticalTextAlignment.Top, imported.TextLayout.VerticalAlignment);
+        Assert.Equal(15, imported.TextLayout.OffsetX);
+        Assert.Equal(25, imported.TextLayout.OffsetY);
     }
 
     [Fact]
@@ -349,9 +363,9 @@ public class PresetServiceTests : IDisposable
         await service.LoadPresetsAsync();
 
         var csvPath = Path.Combine(_testDataDir, "invalid.csv");
-        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson";
-        var invalidRow = "bad1,Bad Preset,not_number,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\"";
-        var validRow = "good1,Good Preset,3,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\"";
+        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson,TextHorizontalAlignment,TextVerticalAlignment,TextOffsetX,TextOffsetY";
+        var invalidRow = "bad1,Bad Preset,not_number,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\",Center,Center,0,0";
+        var validRow = "good1,Good Preset,3,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\",Center,Center,0,0";
         var body = string.Join(Environment.NewLine, new[] { "", header, "", invalidRow, validRow, "" });
         await File.WriteAllTextAsync(csvPath, body);
 
@@ -382,6 +396,13 @@ public class PresetServiceTests : IDisposable
                 ShadowOffsetY = 7,
                 ShadowBlur = 4,
                 ShadowColor = "#80445566"
+            },
+            TextLayout = new TextLayoutSettings
+            {
+                HorizontalAlignment = HorizontalTextAlignment.Right,
+                VerticalAlignment = VerticalTextAlignment.Top,
+                OffsetX = -12,
+                OffsetY = 18
             }
         };
 
@@ -400,6 +421,30 @@ public class PresetServiceTests : IDisposable
         Assert.Equal(7, saved.TextStyle.ShadowOffsetY);
         Assert.Equal(4, saved.TextStyle.ShadowBlur);
         Assert.Equal("#80445566", saved.TextStyle.ShadowColor);
+        Assert.Equal(HorizontalTextAlignment.Right, saved.TextLayout.HorizontalAlignment);
+        Assert.Equal(VerticalTextAlignment.Top, saved.TextLayout.VerticalAlignment);
+        Assert.Equal(-12, saved.TextLayout.OffsetX);
+        Assert.Equal(18, saved.TextLayout.OffsetY);
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_ShouldSupportLegacyCsvWithoutTextLayoutColumns()
+    {
+        var service = CreateService();
+        await service.LoadPresetsAsync();
+
+        var csvPath = Path.Combine(_testDataDir, "legacy.csv");
+        var header = "Id,Name,AutoClearSeconds,BackgroundType,BackgroundColor,BackgroundAlpha,AnimationInType,AnimationOutType,AnimationSpeedSeconds,AnimationEasing,TextLinesJson,OverlaysJson";
+        var row = "legacy1,Legacy Preset,4,solid,#000000,0.1,fade,cut,0.3,Linear,\"[]\",\"[]\"";
+        await File.WriteAllTextAsync(csvPath, header + Environment.NewLine + row);
+
+        await service.ImportFromCsvAsync(csvPath);
+
+        var imported = service.Presets.Single(x => x.Id == "legacy1");
+        Assert.Equal(HorizontalTextAlignment.Center, imported.TextLayout.HorizontalAlignment);
+        Assert.Equal(VerticalTextAlignment.Center, imported.TextLayout.VerticalAlignment);
+        Assert.Equal(0, imported.TextLayout.OffsetX);
+        Assert.Equal(0, imported.TextLayout.OffsetY);
     }
 
     [Fact]
