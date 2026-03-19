@@ -171,12 +171,36 @@ public class RenderService : IRenderService
                     IsAntialias = true
                 };
 
-                var drawWidth = overlay.Width > 0 ? overlay.Width : image.Width;
-                var drawHeight = overlay.Height > 0 ? overlay.Height : image.Height;
+                var (drawWidth, drawHeight) = ResolveOverlaySize(overlay, image.Width, image.Height);
                 var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
                 canvas.DrawBitmap(image, destRect, paint);
             }
         }
+    }
+
+    private static (int Width, int Height) ResolveOverlaySize(OverlayItem overlay, int sourceWidth, int sourceHeight)
+    {
+        var width = overlay.Width;
+        var height = overlay.Height;
+
+        if (width > 0 && height > 0)
+        {
+            return (width, height);
+        }
+
+        if (width > 0)
+        {
+            var scaledHeight = (int)Math.Round(width * (sourceHeight / (double)Math.Max(1, sourceWidth)));
+            return (width, Math.Max(1, scaledHeight));
+        }
+
+        if (height > 0)
+        {
+            var scaledWidth = (int)Math.Round(height * (sourceWidth / (double)Math.Max(1, sourceHeight)));
+            return (Math.Max(1, scaledWidth), height);
+        }
+
+        return (Math.Max(1, sourceWidth), Math.Max(1, sourceHeight));
     }
 
     private static void DrawTextBlocks(SKCanvas canvas, IReadOnlyList<TextBlock> blocks, int width, int height)
