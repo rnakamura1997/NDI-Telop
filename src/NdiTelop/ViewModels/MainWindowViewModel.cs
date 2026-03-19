@@ -186,6 +186,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (_overlayBoundPreset != null)
         {
+            _overlayBoundPreset.Overlays.CollectionChanged -= Overlays_CollectionChanged;
             foreach (var overlay in _overlayBoundPreset.Overlays)
             {
                 overlay.PropertyChanged -= OverlayItem_PropertyChanged;
@@ -199,15 +200,43 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        _overlayBoundPreset.Overlays.CollectionChanged += Overlays_CollectionChanged;
         foreach (var overlay in _overlayBoundPreset.Overlays)
         {
             overlay.PropertyChanged += OverlayItem_PropertyChanged;
         }
     }
 
+    private void Overlays_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (var overlay in e.OldItems.OfType<OverlayItem>())
+            {
+                overlay.PropertyChanged -= OverlayItem_PropertyChanged;
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (var overlay in e.NewItems.OfType<OverlayItem>())
+            {
+                overlay.PropertyChanged += OverlayItem_PropertyChanged;
+            }
+        }
+
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
     private void OverlayItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(OverlayItem.Opacity) or nameof(OverlayItem.IsVisible))
+        if (e.PropertyName is nameof(OverlayItem.Path)
+            or nameof(OverlayItem.X)
+            or nameof(OverlayItem.Y)
+            or nameof(OverlayItem.Width)
+            or nameof(OverlayItem.Height)
+            or nameof(OverlayItem.Opacity)
+            or nameof(OverlayItem.IsVisible))
         {
             OnPropertyChanged(nameof(SelectedPreset));
         }
@@ -987,16 +1016,7 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             var relativePath = _assetService.ImportImage(sourcePath);
-            SelectedPreset.Overlays.Add(new OverlayItem
-            {
-                Path = relativePath,
-                X = 0,
-                Y = 0,
-                Width = 0,
-                Height = 0,
-                Opacity = 1.0,
-                IsVisible = true
-            });
+            SelectedPreset.Overlays.Add(CreateOverlayItem(relativePath));
 
             Status = $"Image imported: {relativePath}";
             Log.Information("Overlay image imported and attached: {RelativePath}", relativePath);
@@ -1010,6 +1030,59 @@ public partial class MainWindowViewModel : ObservableObject
 
         return Task.CompletedTask;
     }
+
+
+    public void AddOverlayFromAsset(string relativePath, double dropX = 0, double dropY = 0, bool centerOnDrop = false)
+    {
+        if (SelectedPreset == null || string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        var overlay = CreateOverlayItem(relativePath, dropX, dropY, centerOnDrop);
+        SelectedPreset.Overlays.Add(overlay);
+        Status = $"Overlay set: {Path.GetFileName(relativePath)}";
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private OverlayItem CreateOverlayItem(string relativePath, double dropX = 0, double dropY = 0, bool centerOnDrop = false)
+    {
+        var width = 0;
+        var height = 0;
+
+        try
+        {
+            var resolvedPath = _assetService.ResolvePath(relativePath);
+            if (File.Exists(resolvedPath))
+            {
+                using var bitmap = SKBitmap.Decode(resolvedPath);
+                if (bitmap != null)
+                {
+                    width = bitmap.Width;
+                    height = bitmap.Height;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not measure asset for overlay placement. Path={Path}", relativePath);
+        }
+
+        var x = centerOnDrop ? dropX - width / 2d : dropX;
+        var y = centerOnDrop ? dropY - height / 2d : dropY;
+
+        return new OverlayItem
+        {
+            Path = relativePath,
+            X = (int)Math.Round(x),
+            Y = (int)Math.Round(y),
+            Width = width,
+            Height = height,
+            Opacity = 1.0,
+            IsVisible = true
+        };
+    }
+
 
     [RelayCommand]
     public void RefreshAssets()
@@ -1031,19 +1104,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        SelectedPreset.Overlays.Add(new OverlayItem
-        {
-            Path = SelectedAsset.RelativePath,
-            X = 0,
-            Y = 0,
-            Width = 0,
-            Height = 0,
-            Opacity = 1.0,
-            IsVisible = true
-        });
-
-        Status = $"Overlay set: {SelectedAsset.FileName}";
-        OnPropertyChanged(nameof(SelectedPreset));
+        AddOverlayFromAsset(SelectedAsset.RelativePath);
     }
 
     [RelayCommand]

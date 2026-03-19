@@ -3,6 +3,9 @@ using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using NdiTelop.Services;
 using NdiTelop.ViewModels;
+using SkiaSharp;
+using System;
+using System.IO;
 using System.Linq;
 using Xunit;
 
@@ -51,6 +54,87 @@ public class ViewModels_MainWindowViewModelTests
 
         Assert.Single(vm.SelectedPreset.TextBlocks);
         Assert.Same(originalBlock, vm.SelectedTextBlock);
+    }
+
+
+    [Fact]
+    public void AddOverlayFromAsset_ShouldUseImageSizeAndCenterOnDrop()
+    {
+        var assetRoot = Path.Combine(Path.GetTempPath(), $"NdiTelopVmAssets_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(assetRoot);
+        var assetPath = Path.Combine(assetRoot, "overlay.png");
+
+        try
+        {
+            using (var bitmap = new SKBitmap(120, 60))
+            using (var image = SKImage.FromBitmap(bitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(assetPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            var renderService = new RenderService();
+            var presetService = Substitute.For<IPresetService>();
+            var ndiService = Substitute.For<INdiService>();
+            var settingsService = Substitute.For<ISettingsService>();
+            var vm = new MainWindowViewModel(renderService, presetService, ndiService, settingsService, assetService: new AssetService(assetRoot));
+
+            vm.AddOverlayFromAsset("overlay.png", 300, 200, centerOnDrop: true);
+
+            var overlay = Assert.Single(vm.SelectedPreset!.Overlays);
+            Assert.Equal(120, overlay.Width);
+            Assert.Equal(60, overlay.Height);
+            Assert.Equal(240, overlay.X);
+            Assert.Equal(170, overlay.Y);
+        }
+        finally
+        {
+            if (Directory.Exists(assetRoot))
+            {
+                Directory.Delete(assetRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SetSelectedAssetAsOverlay_ShouldAddOverlayFromSelectedAsset()
+    {
+        var assetRoot = Path.Combine(Path.GetTempPath(), $"NdiTelopVmAssets_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(assetRoot);
+        var assetPath = Path.Combine(assetRoot, "overlay.png");
+
+        try
+        {
+            using (var bitmap = new SKBitmap(40, 30))
+            using (var image = SKImage.FromBitmap(bitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(assetPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            var renderService = new RenderService();
+            var presetService = Substitute.For<IPresetService>();
+            var ndiService = Substitute.For<INdiService>();
+            var settingsService = Substitute.For<ISettingsService>();
+            var vm = new MainWindowViewModel(renderService, presetService, ndiService, settingsService, assetService: new AssetService(assetRoot));
+            vm.SelectedAsset = new AssetItem { RelativePath = "overlay.png", FullPath = assetPath, ThumbnailPath = assetPath, Kind = "Image" };
+
+            vm.SetSelectedAssetAsOverlayCommand.Execute(null);
+
+            var overlay = Assert.Single(vm.SelectedPreset!.Overlays);
+            Assert.Equal("overlay.png", overlay.Path);
+            Assert.Equal(40, overlay.Width);
+            Assert.Equal(30, overlay.Height);
+        }
+        finally
+        {
+            if (Directory.Exists(assetRoot))
+            {
+                Directory.Delete(assetRoot, recursive: true);
+            }
+        }
     }
 
     [Fact]

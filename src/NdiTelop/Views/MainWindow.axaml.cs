@@ -16,6 +16,7 @@ namespace NdiTelop.Views;
 public partial class MainWindow : Window
 {
     private const string PresetDragDataFormat = "application/x-nditelop-preset-id";
+    private const string AssetDragDataFormat = "application/x-nditelop-asset-path";
     private Preset? _dragSourcePreset;
 
     public MainWindow()
@@ -29,6 +30,12 @@ public partial class MainWindow : Window
             presetListBox.AddHandler(InputElement.PointerPressedEvent, PresetListBox_OnPointerPressed, RoutingStrategies.Bubble);
             presetListBox.AddHandler(DragDrop.DragOverEvent, PresetListBox_OnDragOver, RoutingStrategies.Bubble);
             presetListBox.AddHandler(DragDrop.DropEvent, PresetListBox_OnDrop, RoutingStrategies.Bubble);
+        }
+
+        var assetListBox = this.FindControl<ListBox>("AssetListBox");
+        if (assetListBox != null)
+        {
+            assetListBox.AddHandler(InputElement.PointerPressedEvent, AssetListBox_OnPointerPressed, RoutingStrategies.Bubble);
         }
         // DataContextが設定された後にLoadPresetsAsyncを呼び出す
         this.Opened += (sender, e) =>
@@ -97,6 +104,22 @@ public partial class MainWindow : Window
         await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Move);
     }
 
+
+    private async void AssetListBox_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var asset = ExtractAssetFromEventSource(e.Source);
+        if (asset == null)
+        {
+            return;
+        }
+
+        var dataObject = new DataObject();
+        dataObject.Set(AssetDragDataFormat, asset.RelativePath);
+        dataObject.Set(DataFormats.Text, asset.RelativePath);
+
+        await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Copy);
+    }
+
     private void PresetListBox_OnDragOver(object? sender, DragEventArgs e)
     {
         var targetPreset = ExtractPresetFromEventSource(e.Source);
@@ -160,6 +183,23 @@ public partial class MainWindow : Window
             if (current.DataContext is Preset preset)
             {
                 return preset;
+            }
+
+            current = current.Parent as Control;
+        }
+
+        return null;
+    }
+
+
+    private static AssetItem? ExtractAssetFromEventSource(object? source)
+    {
+        var current = source as Control;
+        while (current != null)
+        {
+            if (current.DataContext is AssetItem asset)
+            {
+                return asset;
             }
 
             current = current.Parent as Control;

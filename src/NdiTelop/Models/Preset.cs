@@ -10,7 +10,7 @@ public class Preset
     public string Name { get; set; } = string.Empty;
     public ObservableCollection<TextBlock> TextBlocks { get; set; } = [];
     public BackgroundStyle Background { get; set; } = new();
-    public List<OverlayItem> Overlays { get; set; } = [];
+    public ObservableCollection<OverlayItem> Overlays { get; set; } = [];
     public AnimationConfig Animation { get; set; } = new();
     public int AutoClearSeconds { get; set; }
 
