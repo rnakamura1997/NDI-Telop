@@ -68,10 +68,39 @@
       <TextBlock Text="Name:" />
       <TextBox Text="{Binding SelectedPreset.Name}" />
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+        <TextBlock Text="Text Blocks" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Content="Add Block" Command="{Binding AddTextBlockCommand}" />
+      </StackPanel>
+      <ListBox ItemsSource="{Binding SelectedPreset.TextBlocks}"
+               SelectedItem="{Binding SelectedTextBlock, Mode=TwoWay}"
+               MinHeight="140"
+               MaxHeight="220">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Border BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,6">
+              <StackPanel Spacing="4">
+                <TextBox Text="{Binding Name, Mode=TwoWay}" Watermark="Block name" />
+                <TextBlock Text="{Binding TextLines.Count, StringFormat={}Lines: {0}}" FontSize="11" Foreground="#AAAAAA" />
+                <Button Content="Remove Block"
+                        HorizontalAlignment="Right"
+                        Command="{Binding DataContext.RemoveTextBlockCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding}" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <Border BorderBrush="#555" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,4,0,0">
+      <StackPanel Spacing="6">
+      <TextBlock Text="Selected Block" FontWeight="SemiBold" />
+      <TextBlock Text="Block Name" />
+      <TextBox Text="{Binding SelectedTextBlock.Name, Mode=TwoWay}" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
         <TextBlock Text="Text Lines" FontWeight="SemiBold" VerticalAlignment="Center" />
         <Button Content="Add Line" Command="{Binding AddTextLineCommand}" />
       </StackPanel>
-      <ListBox ItemsSource="{Binding SelectedPreset.TextLines}" MinHeight="280">
+      <ListBox ItemsSource="{Binding SelectedTextBlock.TextLines}" MinHeight="180">
         <ListBox.ItemTemplate>
           <DataTemplate>
             <Border BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,6">
@@ -94,32 +123,32 @@
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Font" Width="90" VerticalAlignment="Center" />
           <ComboBox ItemsSource="{Binding AvailableFontFamilies}"
-                    SelectedItem="{Binding SelectedPreset.TextStyle.FontFamily, Mode=TwoWay}"
+                    SelectedItem="{Binding SelectedTextBlock.TextStyle.FontFamily, Mode=TwoWay}"
                     HorizontalAlignment="Stretch" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Size" Width="90" VerticalAlignment="Center" />
-          <TextBox Text="{Binding SelectedPreset.TextStyle.FontSize, Mode=TwoWay}" Width="90" />
+          <TextBox Text="{Binding SelectedTextBlock.TextStyle.FontSize, Mode=TwoWay}" Width="90" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Color" Width="90" VerticalAlignment="Center" />
-          <ac:ColorPicker Color="{Binding SelectedPreset.TextStyle.Color, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+          <ac:ColorPicker Color="{Binding SelectedTextBlock.TextStyle.Color, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Outline" Width="90" VerticalAlignment="Center" />
-          <TextBox Text="{Binding SelectedPreset.TextStyle.OutlineThickness, Mode=TwoWay}" Width="90" Watermark="Width" />
-          <ac:ColorPicker Color="{Binding SelectedPreset.TextStyle.OutlineColor, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+          <TextBox Text="{Binding SelectedTextBlock.TextStyle.OutlineThickness, Mode=TwoWay}" Width="90" Watermark="Width" />
+          <ac:ColorPicker Color="{Binding SelectedTextBlock.TextStyle.OutlineColor, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
         </StackPanel>
         <TextBlock Text="Shadow" FontWeight="SemiBold" />
         <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Offset X" VerticalAlignment="Center" />
-          <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPreset.TextStyle.ShadowOffsetX, Mode=TwoWay}" />
+          <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedTextBlock.TextStyle.ShadowOffsetX, Mode=TwoWay}" />
           <TextBlock Grid.Row="1" Grid.Column="0" Text="Offset Y" VerticalAlignment="Center" />
-          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPreset.TextStyle.ShadowOffsetY, Mode=TwoWay}" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedTextBlock.TextStyle.ShadowOffsetY, Mode=TwoWay}" />
           <TextBlock Grid.Row="2" Grid.Column="0" Text="Blur" VerticalAlignment="Center" />
-          <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPreset.TextStyle.ShadowBlur, Mode=TwoWay}" />
+          <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedTextBlock.TextStyle.ShadowBlur, Mode=TwoWay}" />
           <TextBlock Grid.Row="3" Grid.Column="0" Text="Color" VerticalAlignment="Center" />
-          <ac:ColorPicker Grid.Row="3" Grid.Column="1" Color="{Binding SelectedPreset.TextStyle.ShadowColor, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
+          <ac:ColorPicker Grid.Row="3" Grid.Column="1" Color="{Binding SelectedTextBlock.TextStyle.ShadowColor, Mode=TwoWay, Converter={StaticResource StringToColorConverter}}" HorizontalAlignment="Stretch" />
         </Grid>
       </StackPanel>
 
@@ -128,16 +157,18 @@
         <TextBlock Grid.Row="0" Grid.Column="0" Text="Horizontal" VerticalAlignment="Center" />
         <ComboBox Grid.Row="0" Grid.Column="1"
                   ItemsSource="{Binding AvailableHorizontalAlignments}"
-                  SelectedItem="{Binding SelectedPreset.TextLayout.HorizontalAlignment, Mode=TwoWay}" />
+                  SelectedItem="{Binding SelectedTextBlock.TextLayout.HorizontalAlignment, Mode=TwoWay}" />
         <TextBlock Grid.Row="1" Grid.Column="0" Text="Vertical" VerticalAlignment="Center" />
         <ComboBox Grid.Row="1" Grid.Column="1"
                   ItemsSource="{Binding AvailableVerticalAlignments}"
-                  SelectedItem="{Binding SelectedPreset.TextLayout.VerticalAlignment, Mode=TwoWay}" />
+                  SelectedItem="{Binding SelectedTextBlock.TextLayout.VerticalAlignment, Mode=TwoWay}" />
         <TextBlock Grid.Row="2" Grid.Column="0" Text="Offset X" VerticalAlignment="Center" />
-        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPreset.TextLayout.OffsetX, Mode=TwoWay}" Watermark="Pixels" />
+        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedTextBlock.TextLayout.OffsetX, Mode=TwoWay}" Watermark="Pixels" />
         <TextBlock Grid.Row="3" Grid.Column="0" Text="Offset Y" VerticalAlignment="Center" />
-        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPreset.TextLayout.OffsetY, Mode=TwoWay}" Watermark="Pixels" />
+        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedTextBlock.TextLayout.OffsetY, Mode=TwoWay}" Watermark="Pixels" />
       </Grid>
+      </StackPanel>
+      </Border>
 
       <TextBlock Text="Transition Type:" />
       <ComboBox ItemsSource="{Binding AvailableTransitionTypes}"

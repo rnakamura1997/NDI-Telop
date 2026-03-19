@@ -18,8 +18,13 @@ public class PresetStorage
         try
         {
             await using var stream = File.OpenRead(filePath);
-            var presets = await JsonSerializer.DeserializeAsync<List<Preset>>(stream, _options);
-            return presets ?? [];
+            var presets = await JsonSerializer.DeserializeAsync<List<Preset>>(stream, _options) ?? [];
+            foreach (var preset in presets)
+            {
+                preset.EnsureTextBlocksInitialized();
+            }
+
+            return presets;
         }
         catch (Exception ex)
         {

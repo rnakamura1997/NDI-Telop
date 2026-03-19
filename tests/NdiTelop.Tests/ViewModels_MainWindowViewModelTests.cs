@@ -31,7 +31,26 @@ public class ViewModels_MainWindowViewModelTests
         var vm = CreateViewModel();
         Assert.NotNull(vm.SelectedPreset);
         Assert.Equal("New Preset", vm.SelectedPreset.Name);
+        Assert.Single(vm.SelectedPreset.TextBlocks);
+        Assert.NotNull(vm.SelectedTextBlock);
         Assert.Equal("Ready", vm.Status);
+    }
+
+    [Fact]
+    public void AddAndRemoveTextBlock_ShouldManageSelectionAndCollection()
+    {
+        var vm = CreateViewModel();
+
+        vm.AddTextBlockCommand.Execute(null);
+
+        Assert.Equal(2, vm.SelectedPreset!.TextBlocks.Count);
+        Assert.Equal("Text Block 2", vm.SelectedTextBlock!.Name);
+
+        var originalBlock = vm.SelectedPreset.TextBlocks.First();
+        vm.RemoveTextBlockCommand.Execute(vm.SelectedTextBlock);
+
+        Assert.Single(vm.SelectedPreset.TextBlocks);
+        Assert.Same(originalBlock, vm.SelectedTextBlock);
     }
 
     [Fact]

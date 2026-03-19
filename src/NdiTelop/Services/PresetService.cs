@@ -47,6 +47,7 @@ public class PresetService : IPresetService
 
     public async Task SavePresetAsync(Preset preset)
     {
+        preset.EnsureTextBlocksInitialized();
         var idx = _presets.ToList().FindIndex(x => x.Id == preset.Id);
         if (idx >= 0)
         {
@@ -111,6 +112,7 @@ public class PresetService : IPresetService
 
         foreach (var preset in imported)
         {
+            preset.EnsureTextBlocksInitialized();
             var existingIndex = _presets.ToList().FindIndex(p => p.Id == preset.Id);
             if (existingIndex >= 0)
             {
@@ -193,6 +195,7 @@ public class PresetService : IPresetService
             return null;
         }
 
+        duplicate.EnsureTextBlocksInitialized();
         duplicate.Id = Guid.NewGuid().ToString("N");
         duplicate.Name = BuildCopyName(source.Name);
         duplicate.SortOrder = _presets.Count;
@@ -278,6 +281,7 @@ public class PresetService : IPresetService
 
         foreach (var importedPreset in importedPresets)
         {
+            importedPreset.EnsureTextBlocksInitialized();
             var existingIndex = _presets.ToList().FindIndex(p => p.Id == importedPreset.Id);
             if (existingIndex >= 0)
             {

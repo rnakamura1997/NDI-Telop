@@ -20,6 +20,20 @@ namespace NdiTelop.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private static Preset CreateDefaultPreset()
+    {
+        var preset = new Preset { Name = "New Preset" };
+        preset.TextBlocks.Add(new Models.TextBlock
+        {
+            Name = "Text Block 1",
+            TextStyle = new TextStyleSettings { FontSize = 48, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings(),
+            TextLines = [new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" }]
+        });
+        preset.EnsureTextBlocksInitialized();
+        return preset;
+    }
+
     private readonly RenderService _renderService;
     private readonly IPresetService _presetService;
     private readonly INdiService _ndiService;
@@ -41,14 +55,26 @@ public partial class MainWindowViewModel : ObservableObject
 
 
     [ObservableProperty]
-    private Preset? _selectedPreset = new() { Name = "New Preset", TextStyle = new TextStyleSettings { FontSize = 48, Color = "#FFFFFF" }, TextLines = { new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" } } };
+    private Preset? _selectedPreset = CreateDefaultPreset();
+
+    [ObservableProperty]
+    private Models.TextBlock? _selectedTextBlock;
 
     partial void OnSelectedPresetChanged(Preset? value)
     {
+        value?.EnsureTextBlocksInitialized();
         AttachOverlayListeners(value);
+        AttachTextBlockListeners(value);
+        SelectedTextBlock = value?.TextBlocks.FirstOrDefault();
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    partial void OnSelectedTextBlockChanged(Models.TextBlock? value)
+    {
         AttachTextLineListeners(value);
         AttachTextStyleListeners(value);
         AttachTextLayoutListeners(value);
+        OnPropertyChanged(nameof(SelectedTextBlock));
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -187,28 +213,96 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private Preset? _textLineBoundPreset;
+    private Preset? _textBlockBoundPreset;
 
-    private void AttachTextLineListeners(Preset? preset)
+    private void AttachTextBlockListeners(Preset? preset)
     {
-        if (_textLineBoundPreset != null)
+        if (_textBlockBoundPreset != null)
         {
-            _textLineBoundPreset.TextLines.CollectionChanged -= TextLines_CollectionChanged;
-            foreach (var line in _textLineBoundPreset.TextLines)
+            _textBlockBoundPreset.TextBlocks.CollectionChanged -= TextBlocks_CollectionChanged;
+            foreach (var block in _textBlockBoundPreset.TextBlocks)
+            {
+                block.TextLines.CollectionChanged -= TextLines_CollectionChanged;
+                block.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
+                block.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+                foreach (var line in block.TextLines)
+                {
+                    line.PropertyChanged -= TextLine_PropertyChanged;
+                }
+            }
+        }
+
+        _textBlockBoundPreset = preset;
+
+        if (_textBlockBoundPreset == null)
+        {
+            return;
+        }
+
+        _textBlockBoundPreset.EnsureTextBlocksInitialized();
+        _textBlockBoundPreset.TextBlocks.CollectionChanged += TextBlocks_CollectionChanged;
+    }
+
+    private void TextBlocks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (var removed in e.OldItems.OfType<Models.TextBlock>())
+            {
+                removed.TextLines.CollectionChanged -= TextLines_CollectionChanged;
+                removed.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
+                removed.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+                foreach (var line in removed.TextLines)
+                {
+                    line.PropertyChanged -= TextLine_PropertyChanged;
+                }
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (var added in e.NewItems.OfType<Models.TextBlock>())
+            {
+                added.TextLines.CollectionChanged += TextLines_CollectionChanged;
+                added.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
+                added.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
+                foreach (var line in added.TextLines)
+                {
+                    line.PropertyChanged += TextLine_PropertyChanged;
+                }
+            }
+        }
+
+        if (SelectedPreset != null && SelectedTextBlock != null && !SelectedPreset.TextBlocks.Contains(SelectedTextBlock))
+        {
+            SelectedTextBlock = SelectedPreset.TextBlocks.FirstOrDefault();
+        }
+
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private Models.TextBlock? _textLineBoundBlock;
+
+    private void AttachTextLineListeners(Models.TextBlock? block)
+    {
+        if (_textLineBoundBlock != null)
+        {
+            _textLineBoundBlock.TextLines.CollectionChanged -= TextLines_CollectionChanged;
+            foreach (var line in _textLineBoundBlock.TextLines)
             {
                 line.PropertyChanged -= TextLine_PropertyChanged;
             }
         }
 
-        _textLineBoundPreset = preset;
+        _textLineBoundBlock = block;
 
-        if (_textLineBoundPreset == null)
+        if (_textLineBoundBlock == null)
         {
             return;
         }
 
-        _textLineBoundPreset.TextLines.CollectionChanged += TextLines_CollectionChanged;
-        foreach (var line in _textLineBoundPreset.TextLines)
+        _textLineBoundBlock.TextLines.CollectionChanged += TextLines_CollectionChanged;
+        foreach (var line in _textLineBoundBlock.TextLines)
         {
             line.PropertyChanged += TextLine_PropertyChanged;
         }
@@ -240,23 +334,23 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
-    private Preset? _textLayoutBoundPreset;
+    private Models.TextBlock? _textLayoutBoundBlock;
 
-    private void AttachTextLayoutListeners(Preset? preset)
+    private void AttachTextLayoutListeners(Models.TextBlock? block)
     {
-        if (_textLayoutBoundPreset?.TextLayout != null)
+        if (_textLayoutBoundBlock?.TextLayout != null)
         {
-            _textLayoutBoundPreset.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+            _textLayoutBoundBlock.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
         }
 
-        _textLayoutBoundPreset = preset;
+        _textLayoutBoundBlock = block;
 
-        if (_textLayoutBoundPreset?.TextLayout == null)
+        if (_textLayoutBoundBlock?.TextLayout == null)
         {
             return;
         }
 
-        _textLayoutBoundPreset.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
+        _textLayoutBoundBlock.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
     }
 
     private void TextLayout_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -264,23 +358,23 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
-    private Preset? _textStyleBoundPreset;
+    private Models.TextBlock? _textStyleBoundBlock;
 
-    private void AttachTextStyleListeners(Preset? preset)
+    private void AttachTextStyleListeners(Models.TextBlock? block)
     {
-        if (_textStyleBoundPreset?.TextStyle != null)
+        if (_textStyleBoundBlock?.TextStyle != null)
         {
-            _textStyleBoundPreset.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
+            _textStyleBoundBlock.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
         }
 
-        _textStyleBoundPreset = preset;
+        _textStyleBoundBlock = block;
 
-        if (_textStyleBoundPreset?.TextStyle == null)
+        if (_textStyleBoundBlock?.TextStyle == null)
         {
             return;
         }
 
-        _textStyleBoundPreset.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
+        _textStyleBoundBlock.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
     }
 
     private void TextStyle_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -324,6 +418,9 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         EnsureTextStyleDefaults(SelectedPreset);
+        AttachOverlayListeners(SelectedPreset);
+        AttachTextBlockListeners(SelectedPreset);
+        SelectedTextBlock = SelectedPreset?.TextBlocks.FirstOrDefault();
 
         // コマンドの初期化
         ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
@@ -773,45 +870,50 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        preset.TextStyle ??= new TextStyleSettings();
-        preset.TextLayout ??= new TextLayoutSettings();
+        preset.EnsureTextBlocksInitialized();
 
-        if (string.IsNullOrWhiteSpace(preset.TextStyle.FontFamily))
+        foreach (var block in preset.TextBlocks)
         {
-            preset.TextStyle.FontFamily = preset.TextLines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line.FontFamily))?.FontFamily
-                ?? AvailableFontFamilies.FirstOrDefault()
-                ?? "Meiryo";
-        }
+            block.TextStyle ??= new TextStyleSettings();
+            block.TextLayout ??= new TextLayoutSettings();
 
-        if (preset.TextStyle.FontSize <= 0)
-        {
-            preset.TextStyle.FontSize = preset.TextLines.FirstOrDefault(line => line.FontSize > 0)?.FontSize ?? 48;
-        }
+            if (string.IsNullOrWhiteSpace(block.TextStyle.FontFamily))
+            {
+                block.TextStyle.FontFamily = block.TextLines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line.FontFamily))?.FontFamily
+                    ?? AvailableFontFamilies.FirstOrDefault()
+                    ?? "Meiryo";
+            }
 
-        if (string.IsNullOrWhiteSpace(preset.TextStyle.Color))
-        {
-            preset.TextStyle.Color = preset.TextLines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line.Color))?.Color ?? "#FFFFFF";
+            if (block.TextStyle.FontSize <= 0)
+            {
+                block.TextStyle.FontSize = block.TextLines.FirstOrDefault(line => line.FontSize > 0)?.FontSize ?? 48;
+            }
+
+            if (string.IsNullOrWhiteSpace(block.TextStyle.Color))
+            {
+                block.TextStyle.Color = block.TextLines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line.Color))?.Color ?? "#FFFFFF";
+            }
         }
     }
 
     [RelayCommand]
     private void AddTextLine()
     {
-        if (SelectedPreset == null)
+        if (SelectedTextBlock == null)
         {
             return;
         }
 
-        var defaultFontFamily = SelectedPreset.TextStyle.FontFamily;
+        var defaultFontFamily = SelectedTextBlock.TextStyle.FontFamily;
         if (string.IsNullOrWhiteSpace(defaultFontFamily))
         {
             defaultFontFamily = AvailableFontFamilies.FirstOrDefault() ?? "Meiryo";
         }
 
-        var defaultFontSize = SelectedPreset.TextStyle.FontSize > 0 ? SelectedPreset.TextStyle.FontSize : 48;
-        var defaultColor = string.IsNullOrWhiteSpace(SelectedPreset.TextStyle.Color) ? "#FFFFFF" : SelectedPreset.TextStyle.Color;
+        var defaultFontSize = SelectedTextBlock.TextStyle.FontSize > 0 ? SelectedTextBlock.TextStyle.FontSize : 48;
+        var defaultColor = string.IsNullOrWhiteSpace(SelectedTextBlock.TextStyle.Color) ? "#FFFFFF" : SelectedTextBlock.TextStyle.Color;
 
-        SelectedPreset.TextLines.Add(new TextLine
+        SelectedTextBlock.TextLines.Add(new TextLine
         {
             Text = "New line",
             FontFamily = defaultFontFamily,
@@ -823,12 +925,55 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void RemoveTextLine(TextLine? line)
     {
-        if (SelectedPreset == null || line == null)
+        if (SelectedTextBlock == null || line == null)
         {
             return;
         }
 
-        SelectedPreset.TextLines.Remove(line);
+        SelectedTextBlock.TextLines.Remove(line);
+    }
+
+    [RelayCommand]
+    private void AddTextBlock()
+    {
+        if (SelectedPreset == null)
+        {
+            return;
+        }
+
+        SelectedPreset.EnsureTextBlocksInitialized();
+        var blockIndex = SelectedPreset.TextBlocks.Count + 1;
+        var fontFamily = AvailableFontFamilies.FirstOrDefault() ?? "Meiryo";
+
+        var block = new Models.TextBlock
+        {
+            Name = $"Text Block {blockIndex}",
+            TextStyle = new TextStyleSettings { FontFamily = fontFamily, FontSize = 48, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings(),
+            TextLines = [new TextLine { Text = $"Line {blockIndex}", FontFamily = fontFamily, FontSize = 48, Color = "#FFFFFF" }]
+        };
+
+        SelectedPreset.TextBlocks.Add(block);
+        SelectedTextBlock = block;
+    }
+
+    [RelayCommand]
+    private void RemoveTextBlock(Models.TextBlock? block)
+    {
+        if (SelectedPreset == null || block == null)
+        {
+            return;
+        }
+
+        if (SelectedPreset.TextBlocks.Count <= 1)
+        {
+            return;
+        }
+
+        var index = SelectedPreset.TextBlocks.IndexOf(block);
+        SelectedPreset.TextBlocks.Remove(block);
+        SelectedTextBlock = SelectedPreset.TextBlocks.ElementAtOrDefault(Math.Max(0, index - 1))
+            ?? SelectedPreset.TextBlocks.FirstOrDefault();
     }
 
     public Task ImportOverlayImageAsync(string sourcePath)

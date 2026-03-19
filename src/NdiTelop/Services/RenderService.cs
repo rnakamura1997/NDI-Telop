@@ -23,7 +23,8 @@ public class RenderService : IRenderService
         canvas.Clear(SKColors.Transparent);
 
         DrawBackground(canvas, preset.Background, width, height);
-        DrawTextLines(canvas, preset.TextLines, preset.TextStyle, preset.TextLayout, width, height);
+        preset.EnsureTextBlocksInitialized();
+        DrawTextBlocks(canvas, preset.TextBlocks, width, height);
         DrawOverlays(canvas, preset.Overlays, width, height);
 
         return bitmap;
@@ -175,6 +176,14 @@ public class RenderService : IRenderService
                 var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
                 canvas.DrawBitmap(image, destRect, paint);
             }
+        }
+    }
+
+    private static void DrawTextBlocks(SKCanvas canvas, IReadOnlyList<TextBlock> blocks, int width, int height)
+    {
+        foreach (var block in blocks)
+        {
+            DrawTextLines(canvas, block.TextLines, block.TextStyle, block.TextLayout, width, height);
         }
     }
 

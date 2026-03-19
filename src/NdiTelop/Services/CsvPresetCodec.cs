@@ -30,7 +30,7 @@ internal static class CsvPresetCodec
         "AnimationOutType",
         "AnimationSpeedSeconds",
         "AnimationEasing",
-        "TextLinesJson",
+        "TextBlocksJson",
         "OverlaysJson",
         "TextHorizontalAlignment",
         "TextVerticalAlignment",
@@ -59,12 +59,12 @@ internal static class CsvPresetCodec
                 preset.Animation.OutType,
                 preset.Animation.SpeedSeconds.ToString(CultureInfo.InvariantCulture),
                 preset.Animation.Easing,
-                JsonSerializer.Serialize(preset.TextLines, JsonOptions),
+                JsonSerializer.Serialize(preset.TextBlocks, JsonOptions),
                 JsonSerializer.Serialize(preset.Overlays, JsonOptions),
-                preset.TextLayout.HorizontalAlignment.ToString(),
-                preset.TextLayout.VerticalAlignment.ToString(),
-                preset.TextLayout.OffsetX.ToString(CultureInfo.InvariantCulture),
-                preset.TextLayout.OffsetY.ToString(CultureInfo.InvariantCulture)
+                preset.PrimaryTextBlock.TextLayout.HorizontalAlignment.ToString(),
+                preset.PrimaryTextBlock.TextLayout.VerticalAlignment.ToString(),
+                preset.PrimaryTextBlock.TextLayout.OffsetX.ToString(CultureInfo.InvariantCulture),
+                preset.PrimaryTextBlock.TextLayout.OffsetY.ToString(CultureInfo.InvariantCulture)
             };
 
             await writer.WriteLineAsync(ToCsvLine(row));
@@ -158,7 +158,15 @@ internal static class CsvPresetCodec
                 return null;
             }
 
-            var textLines = JsonSerializer.Deserialize<List<TextLine>>(tokens[10], JsonOptions) ?? [];
+            var textBlocks = TryDeserialize<List<TextBlock>>(tokens[10]) ?? [];
+            if (!LooksLikeTextBlocks(textBlocks))
+            {
+                textBlocks = [];
+            }
+
+            var textLines = textBlocks.Count == 0
+                ? TryDeserialize<List<TextLine>>(tokens[10]) ?? []
+                : [];
             var overlays = JsonSerializer.Deserialize<List<OverlayItem>>(tokens[11], JsonOptions) ?? [];
 
             var horizontalAlignment = HorizontalTextAlignment.Center;
@@ -189,11 +197,12 @@ internal static class CsvPresetCodec
                 }
             }
 
-            return new Preset
+            var preset = new Preset
             {
                 Id = id,
                 Name = name,
                 AutoClearSeconds = autoClearSeconds,
+                TextBlocks = textBlocks.Count > 0 ? [.. textBlocks] : [],
                 TextLines = [.. textLines],
                 Overlays = overlays,
                 Background = new BackgroundStyle
@@ -217,6 +226,9 @@ internal static class CsvPresetCodec
                     OffsetY = offsetY
                 }
             };
+
+            preset.EnsureTextBlocksInitialized();
+            return preset;
         }
         catch
         {
@@ -246,6 +258,24 @@ internal static class CsvPresetCodec
     {
         return string.Join(',', values.Select(EscapeCsvValue));
     }
+
+    private static T? TryDeserialize<T>(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    private static bool LooksLikeTextBlocks(IReadOnlyList<TextBlock> textBlocks)
+        => textBlocks.Any(block =>
+            block.TextLines.Count > 0 ||
+            !string.IsNullOrWhiteSpace(block.TextStyle?.FontFamily) ||
+            block.TextStyle?.FontSize > 0);
 
     private static string EscapeCsvValue(string value)
     {
