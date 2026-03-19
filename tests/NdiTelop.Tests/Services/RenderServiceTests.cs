@@ -391,4 +391,95 @@ public class RenderServiceTests
         Assert.True(hasDifference);
     }
 
+
+    [Fact]
+    public void Render_ShouldRespectHorizontalAlignmentAndOffsets()
+    {
+        var service = new RenderService();
+        var leftPreset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextStyle = new TextStyleSettings { FontSize = 64, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Left, OffsetX = 20 },
+            TextLines = [new TextLine { Text = "Align" }]
+        };
+
+        var rightPreset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextStyle = new TextStyleSettings { FontSize = 64, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Right, OffsetX = -20 },
+            TextLines = [new TextLine { Text = "Align" }]
+        };
+
+        using var leftBitmap = service.Render(leftPreset, 400, 200);
+        using var rightBitmap = service.Render(rightPreset, 400, 200);
+
+        var leftBounds = GetDrawnBounds(leftBitmap);
+        var rightBounds = GetDrawnBounds(rightBitmap);
+
+        Assert.NotNull(leftBounds);
+        Assert.NotNull(rightBounds);
+        Assert.True(leftBounds!.Value.Left < rightBounds!.Value.Left);
+        Assert.True(leftBounds.Value.Right < rightBounds.Value.Right);
+    }
+
+    [Fact]
+    public void Render_ShouldRespectVerticalAlignmentAndOffsets()
+    {
+        var service = new RenderService();
+        var topPreset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextStyle = new TextStyleSettings { FontSize = 56, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings { VerticalAlignment = VerticalTextAlignment.Top, OffsetY = 12 },
+            TextLines = [new TextLine { Text = "Top" }]
+        };
+
+        var bottomPreset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextStyle = new TextStyleSettings { FontSize = 56, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings { VerticalAlignment = VerticalTextAlignment.Bottom, OffsetY = -12 },
+            TextLines = [new TextLine { Text = "Bottom" }]
+        };
+
+        using var topBitmap = service.Render(topPreset, 400, 220);
+        using var bottomBitmap = service.Render(bottomPreset, 400, 220);
+
+        var topBounds = GetDrawnBounds(topBitmap);
+        var bottomBounds = GetDrawnBounds(bottomBitmap);
+
+        Assert.NotNull(topBounds);
+        Assert.NotNull(bottomBounds);
+        Assert.True(topBounds!.Value.Top < bottomBounds!.Value.Top);
+        Assert.True(topBounds.Value.Bottom < bottomBounds.Value.Bottom);
+    }
+
+    private static SKRectI? GetDrawnBounds(SKBitmap bitmap)
+    {
+        var minX = bitmap.Width;
+        var minY = bitmap.Height;
+        var maxX = -1;
+        var maxY = -1;
+
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                if (bitmap.GetPixel(x, y).Alpha == 0)
+                {
+                    continue;
+                }
+
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, x);
+                maxY = Math.Max(maxY, y);
+            }
+        }
+
+        return maxX >= 0 ? new SKRectI(minX, minY, maxX, maxY) : null;
+    }
+
 }

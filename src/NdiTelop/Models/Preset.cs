@@ -10,6 +10,7 @@ public class Preset
     public ObservableCollection<TextLine> TextLines { get; set; } = [];
     public BackgroundStyle Background { get; set; } = new();
     public TextStyleSettings TextStyle { get; set; } = new();
+    public TextLayoutSettings TextLayout { get; set; } = new();
     public List<OverlayItem> Overlays { get; set; } = [];
     public AnimationConfig Animation { get; set; } = new();
     public int AutoClearSeconds { get; set; }
