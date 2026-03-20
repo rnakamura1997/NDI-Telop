@@ -117,6 +117,10 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<KeyerSlot> DskKeyers { get; } = [];
     public ObservableCollection<KeyerDestination> AvailableDestinationKeyers { get; } = new(KeyerDefinitions.OrderedDestinations);
     public ObservableCollection<int> AvailableKeyerPriorities { get; } = [4, 3, 2, 1];
+    public bool IsSoloModeActive => SoloKeyerDestination.HasValue;
+    public string SoloModeLabel => SoloKeyerDestination.HasValue
+        ? $"Solo: {SoloKeyerDestination.Value.ToDisplayName()}"
+        : "Solo: OFF";
 
     [ObservableProperty]
     private AssetItem? _selectedAsset;
@@ -171,6 +175,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private SelectionAlignmentReferenceMode _selectedAlignmentReferenceMode = SelectionAlignmentReferenceMode.SelectionBounds;
+
+    [ObservableProperty]
+    private KeyerDestination? _soloKeyerDestination;
 
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
@@ -1296,6 +1303,27 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void ToggleSoloKeyer(KeyerSlot? keyer)
+    {
+        if (keyer == null)
+        {
+            return;
+        }
+
+        SoloKeyerDestination = SoloKeyerDestination == keyer.Destination ? null : keyer.Destination;
+        Status = SoloKeyerDestination.HasValue
+            ? $"Solo enabled: {SoloKeyerDestination.Value.ToDisplayName()}"
+            : "Solo disabled.";
+    }
+
+    [RelayCommand]
+    private void ClearSoloKeyer()
+    {
+        SoloKeyerDestination = null;
+        Status = "Solo disabled.";
+    }
+
+    [RelayCommand]
     private void ToggleKeyer(KeyerSlot? keyer)
     {
         if (keyer == null)
@@ -1311,6 +1339,13 @@ public partial class MainWindowViewModel : ObservableObject
     public void ReportSelectionAlignment(string description)
     {
         Status = description;
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    partial void OnSoloKeyerDestinationChanged(KeyerDestination? value)
+    {
+        OnPropertyChanged(nameof(IsSoloModeActive));
+        OnPropertyChanged(nameof(SoloModeLabel));
         OnPropertyChanged(nameof(SelectedPreset));
     }
 

@@ -61,7 +61,22 @@
       <ctrl:PreviewCanvas x:Name="PreviewCanvas" Preset="{Binding CurrentPreviewPreset}"
                           SelectedTextBlock="{Binding SelectedTextBlock, Mode=TwoWay}"
                           AlignmentReferenceMode="{Binding SelectedAlignmentReferenceMode, Mode=TwoWay}"
-                          NdiConfig="{Binding NdiConfig}" />
+                          SoloKeyerDestination="{Binding SoloKeyerDestination, Mode=TwoWay}"
+                          NdiConfig="{Binding NdiConfig}">
+        <ctrl:PreviewCanvas.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="USK1へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Usk1" />
+            <MenuItem Header="USK2へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Usk2" />
+            <MenuItem Header="USK3へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Usk3" />
+            <MenuItem Header="USK4へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Usk4" />
+            <Separator />
+            <MenuItem Header="DSK1へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Dsk1" />
+            <MenuItem Header="DSK2へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Dsk2" />
+            <MenuItem Header="DSK3へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Dsk3" />
+            <MenuItem Header="DSK4へ移動" Click="MoveSelectionToKeyerMenuItem_OnClick" Tag="Dsk4" />
+          </ContextMenu>
+        </ctrl:PreviewCanvas.ContextMenu>
+      </ctrl:PreviewCanvas>
     </Border>
 
     <!-- Right Column: Preset Editor and Overlay Manager -->
@@ -194,6 +209,10 @@
 
 
       <TextBlock Text="Keyer Control" FontWeight="Bold" Margin="0,10,0,5" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="{Binding SoloModeLabel}" VerticalAlignment="Center" />
+        <Button Content="Clear Solo" Command="{Binding ClearSoloKeyerCommand}" IsEnabled="{Binding IsSoloModeActive}" />
+      </StackPanel>
       <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
         <Border Grid.Column="0" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="8">
           <StackPanel Spacing="6">
@@ -202,14 +221,19 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
                   <Border BorderBrush="#555" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,6">
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
                       <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" />
                       <Button Grid.Row="0" Grid.Column="1" Content="ON / OFF" MinWidth="88" Height="40"
                               Command="{Binding DataContext.ToggleKeyerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                               CommandParameter="{Binding}" />
-                      <TextBlock Grid.Row="0" Grid.Column="2" Text="Priority" VerticalAlignment="Center" />
-                      <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding DataContext.AvailableKeyerPriorities, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Priority, Mode=TwoWay}" Width="64" />
-                      <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                      <Button Grid.Row="0" Grid.Column="2" Content="Solo"
+                              Command="{Binding DataContext.ToggleSoloKeyerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}" />
+                      <Button Grid.Row="0" Grid.Column="3" Content="Select All"
+                              Click="SelectAllKeyerElementsButton_OnClick" />
+                      <TextBlock Grid.Row="1" Grid.Column="2" Text="Priority" VerticalAlignment="Center" />
+                      <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding DataContext.AvailableKeyerPriorities, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Priority, Mode=TwoWay}" Width="64" />
+                      <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="2" Orientation="Horizontal" Spacing="8">
                         <Slider Minimum="0" Maximum="1" Value="{Binding Opacity, Mode=TwoWay}" Orientation="Vertical" Height="120" Width="32" />
                         <TextBlock Text="{Binding Opacity, StringFormat={}{0:F2}}" VerticalAlignment="Center" />
                       </StackPanel>
@@ -227,14 +251,19 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
                   <Border BorderBrush="#555" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,6">
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
                       <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" />
                       <Button Grid.Row="0" Grid.Column="1" Content="ON / OFF" MinWidth="88" Height="40"
                               Command="{Binding DataContext.ToggleKeyerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                               CommandParameter="{Binding}" />
-                      <TextBlock Grid.Row="0" Grid.Column="2" Text="Priority" VerticalAlignment="Center" />
-                      <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding DataContext.AvailableKeyerPriorities, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Priority, Mode=TwoWay}" Width="64" />
-                      <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                      <Button Grid.Row="0" Grid.Column="2" Content="Solo"
+                              Command="{Binding DataContext.ToggleSoloKeyerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}" />
+                      <Button Grid.Row="0" Grid.Column="3" Content="Select All"
+                              Click="SelectAllKeyerElementsButton_OnClick" />
+                      <TextBlock Grid.Row="1" Grid.Column="2" Text="Priority" VerticalAlignment="Center" />
+                      <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding DataContext.AvailableKeyerPriorities, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Priority, Mode=TwoWay}" Width="64" />
+                      <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="2" Orientation="Horizontal" Spacing="8">
                         <Slider Minimum="0" Maximum="1" Value="{Binding Opacity, Mode=TwoWay}" Orientation="Vertical" Height="120" Width="32" />
                         <TextBlock Text="{Binding Opacity, StringFormat={}{0:F2}}" VerticalAlignment="Center" />
                       </StackPanel>

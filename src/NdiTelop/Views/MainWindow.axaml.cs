@@ -216,6 +216,34 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)
+            && this.FindControl<PreviewCanvas>("PreviewCanvas") is { } previewCanvas
+            && previewCanvas.HasSelection)
+        {
+            var destination = e.Key switch
+            {
+                Key.D1 or Key.NumPad1 => KeyerDestination.Usk1,
+                Key.D2 or Key.NumPad2 => KeyerDestination.Usk2,
+                Key.D3 or Key.NumPad3 => KeyerDestination.Usk3,
+                Key.D4 or Key.NumPad4 => KeyerDestination.Usk4,
+                Key.D5 or Key.NumPad5 => KeyerDestination.Dsk1,
+                Key.D6 or Key.NumPad6 => KeyerDestination.Dsk2,
+                Key.D7 or Key.NumPad7 => KeyerDestination.Dsk3,
+                Key.D8 or Key.NumPad8 => KeyerDestination.Dsk4,
+                _ => (KeyerDestination?)null
+            };
+
+            if (destination.HasValue)
+            {
+                var moved = previewCanvas.MoveSelectionToKeyer(destination.Value);
+                viewModel.Status = moved > 0
+                    ? $"{moved} item(s) moved to {destination.Value.ToDisplayName()}."
+                    : $"Selection is already on {destination.Value.ToDisplayName()}.";
+                e.Handled = true;
+                return;
+            }
+        }
+
         var number = e.Key switch
         {
             Key.NumPad1 => 1,
@@ -399,6 +427,36 @@ public partial class MainWindow : Window
         }
 
         viewModel.ReportSelectionAlignment($"整列を適用しました: {GetAlignmentCommandLabel(command)}");
+    }
+
+
+    private void SelectAllKeyerElementsButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: KeyerSlot keyer }
+            || this.FindControl<PreviewCanvas>("PreviewCanvas") is not { } previewCanvas
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        previewCanvas.SelectAllInKeyer(keyer.Destination);
+        viewModel.Status = $"Selected all elements in {keyer.Destination.ToDisplayName()}.";
+    }
+
+    private void MoveSelectionToKeyerMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag }
+            || !Enum.TryParse<KeyerDestination>(tag, out var destination)
+            || this.FindControl<PreviewCanvas>("PreviewCanvas") is not { } previewCanvas
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var moved = previewCanvas.MoveSelectionToKeyer(destination);
+        viewModel.Status = moved > 0
+            ? $"{moved} item(s) moved to {destination.ToDisplayName()}."
+            : $"Selection is already on {destination.ToDisplayName()}.";
     }
 
     private static string GetAlignmentCommandLabel(SelectionAlignmentCommand command)
