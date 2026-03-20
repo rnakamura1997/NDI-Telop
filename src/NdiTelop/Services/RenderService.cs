@@ -17,6 +17,9 @@ public class RenderService : IRenderService
     }
 
     public SKBitmap Render(Preset preset, int width, int height)
+        => Render(preset, width, height, null);
+
+    public SKBitmap Render(Preset preset, int width, int height, KeyerDestination? soloKeyerDestination)
     {
         var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(bitmap);
@@ -25,12 +28,12 @@ public class RenderService : IRenderService
         DrawBackground(canvas, preset.Background, width, height);
         preset.EnsureTextBlocksInitialized();
 
-        foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Usk))
+        foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Usk, soloKeyerDestination))
         {
             DrawKeyer(canvas, keyer, width, height);
         }
 
-        foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Dsk))
+        foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Dsk, soloKeyerDestination))
         {
             DrawKeyer(canvas, keyer, width, height);
         }
@@ -158,9 +161,10 @@ public class RenderService : IRenderService
         canvas.Restore();
     }
 
-    private static IEnumerable<KeyerSlot> GetRenderOrderedKeyers(Preset preset, KeyerBusType busType)
+    private static IEnumerable<KeyerSlot> GetRenderOrderedKeyers(Preset preset, KeyerBusType busType, KeyerDestination? soloKeyerDestination)
         => preset.Keyers
             .Where(keyer => keyer.BusType == busType)
+            .Where(keyer => !soloKeyerDestination.HasValue || keyer.Destination == soloKeyerDestination.Value)
             .OrderBy(keyer => keyer.Priority)
             .ThenBy(keyer => keyer.Destination);
 

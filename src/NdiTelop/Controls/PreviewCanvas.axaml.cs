@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using NdiTelop.Models;
 using ModelTextBlock = NdiTelop.Models.TextBlock;
 using NdiTelop.Services;
@@ -65,6 +66,10 @@ public partial class PreviewCanvas : UserControl
         AvaloniaProperty.RegisterDirect<PreviewCanvas, SelectionAlignmentReferenceMode>(
             nameof(AlignmentReferenceMode), o => o.AlignmentReferenceMode, (o, v) => o.AlignmentReferenceMode = v);
 
+    public static readonly DirectProperty<PreviewCanvas, KeyerDestination?> SoloKeyerDestinationProperty =
+        AvaloniaProperty.RegisterDirect<PreviewCanvas, KeyerDestination?>(
+            nameof(SoloKeyerDestination), o => o.SoloKeyerDestination, (o, v) => o.SoloKeyerDestination = v);
+
     private Preset? _preset;
     public Preset? Preset
     {
@@ -123,6 +128,23 @@ public partial class PreviewCanvas : UserControl
         set => SetAndRaise(AlignmentReferenceModeProperty, ref _alignmentReferenceMode, value);
     }
 
+    private KeyerDestination? _soloKeyerDestination;
+    public KeyerDestination? SoloKeyerDestination
+    {
+        get => _soloKeyerDestination;
+        set
+        {
+            if (_soloKeyerDestination == value)
+            {
+                return;
+            }
+
+            SetAndRaise(SoloKeyerDestinationProperty, ref _soloKeyerDestination, value);
+            EnsureSelectionBelongsToPreset();
+            InvalidateVisual();
+        }
+    }
+
     public PreviewCanvas()
     {
         InitializeComponent();
@@ -143,7 +165,7 @@ public partial class PreviewCanvas : UserControl
         }
 
         _renderedBitmap?.Dispose();
-        _renderedBitmap = _renderService.Render(Preset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
+        _renderedBitmap = _renderService.Render(Preset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, SoloKeyerDestination);
         UpdateBounds();
 
         if (_renderedBitmap == null)
@@ -274,6 +296,24 @@ public partial class PreviewCanvas : UserControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+
+        if (e.InitialPressMouseButton == MouseButton.Right)
+        {
+            var point = ToRenderPoint(e.GetPosition(this));
+            var hit = HitTestItem(point);
+            if (hit.TargetType == DragTargetType.Overlay && hit.Overlay != null && !_selectedOverlays.Contains(hit.Overlay))
+            {
+                SelectOverlay(hit.Overlay, append: false);
+            }
+            else if (hit.TargetType == DragTargetType.TextBlock && hit.TextBlock != null && !_selectedTextBlocks.Contains(hit.TextBlock))
+            {
+                SelectTextBlock(hit.TextBlock, append: false);
+            }
+
+            Dispatcher.UIThread.Post(() => ContextMenu?.Open(this));
+            e.Handled = true;
+            return;
+        }
 
         if (_isRubberBandSelecting && _rubberBandRect is { } rubberBandRect)
         {
@@ -429,6 +469,82 @@ public partial class PreviewCanvas : UserControl
     }
 
     private int SelectionCount => _selectedTextBlocks.Count + _selectedOverlays.Count;
+
+
+    public bool HasSelection => SelectionCount > 0;
+
+    public void SelectAllInKeyer(KeyerDestination destination)
+    {
+        if (Preset == null)
+        {
+            return;
+        }
+
+        Preset.EnsureTextBlocksInitialized();
+        if (SoloKeyerDestination.HasValue && SoloKeyerDestination.Value != destination)
+        {
+            ClearSelection();
+            InvalidateVisual();
+            return;
+        }
+
+        var keyer = Preset.Keyers.FirstOrDefault(x => x.Destination == destination);
+        if (keyer == null || !keyer.KeyOn)
+        {
+            ClearSelection();
+            InvalidateVisual();
+            return;
+        }
+
+        ClearSelection();
+        foreach (var overlay in keyer.Overlays.Where(overlay => overlay.IsVisible))
+        {
+            SelectOverlay(overlay, append: true);
+        }
+
+        foreach (var block in keyer.TextBlocks)
+        {
+            SelectTextBlock(block, append: true);
+        }
+
+        if (_selectedOverlays.Count > 0)
+        {
+            SelectedTextBlock = null;
+        }
+
+        InvalidateVisual();
+    }
+
+    public int MoveSelectionToKeyer(KeyerDestination destination)
+    {
+        var moved = 0;
+
+        foreach (var overlay in _selectedOverlays.ToList())
+        {
+            if (overlay.DestinationKeyer == destination)
+            {
+                continue;
+            }
+
+            MoveOverlayToKeyer(overlay, destination);
+            moved++;
+        }
+
+        foreach (var block in _selectedTextBlocks.ToList())
+        {
+            if (block.DestinationKeyer == destination)
+            {
+                continue;
+            }
+
+            MoveTextBlockToKeyer(block, destination);
+            moved++;
+        }
+
+        EnsureSelectionBelongsToPreset();
+        InvalidateVisual();
+        return moved;
+    }
 
     public bool CanAlignSelection => SelectionCount > 1;
 
@@ -622,6 +738,57 @@ public partial class PreviewCanvas : UserControl
         {
             SelectedTextBlock = null;
         }
+    }
+
+
+    private void MoveTextBlockToKeyer(ModelTextBlock block, KeyerDestination destination)
+    {
+        if (Preset == null)
+        {
+            return;
+        }
+
+        foreach (var keyer in Preset.Keyers)
+        {
+            if (keyer.Destination == destination)
+            {
+                if (!keyer.TextBlocks.Contains(block))
+                {
+                    keyer.TextBlocks.Add(block);
+                }
+            }
+            else if (keyer.TextBlocks.Contains(block))
+            {
+                keyer.TextBlocks.Remove(block);
+            }
+        }
+
+        block.DestinationKeyer = destination;
+    }
+
+    private void MoveOverlayToKeyer(OverlayItem overlay, KeyerDestination destination)
+    {
+        if (Preset == null)
+        {
+            return;
+        }
+
+        foreach (var keyer in Preset.Keyers)
+        {
+            if (keyer.Destination == destination)
+            {
+                if (!keyer.Overlays.Contains(overlay))
+                {
+                    keyer.Overlays.Add(overlay);
+                }
+            }
+            else if (keyer.Overlays.Contains(overlay))
+            {
+                keyer.Overlays.Remove(overlay);
+            }
+        }
+
+        overlay.DestinationKeyer = destination;
     }
 
     public bool AlignSelection(SelectionAlignmentCommand command)
@@ -1303,6 +1470,7 @@ public partial class PreviewCanvas : UserControl
     private IReadOnlyList<ModelTextBlock> GetInteractiveTextBlocks()
         => Preset?.Keyers
             .Where(keyer => keyer.KeyOn)
+            .Where(keyer => !SoloKeyerDestination.HasValue || keyer.Destination == SoloKeyerDestination.Value)
             .OrderBy(keyer => keyer.BusType)
             .ThenBy(keyer => keyer.Priority)
             .SelectMany(keyer => keyer.TextBlocks)
@@ -1312,6 +1480,7 @@ public partial class PreviewCanvas : UserControl
     private IReadOnlyList<OverlayItem> GetInteractiveOverlays()
         => Preset?.Keyers
             .Where(keyer => keyer.KeyOn)
+            .Where(keyer => !SoloKeyerDestination.HasValue || keyer.Destination == SoloKeyerDestination.Value)
             .OrderBy(keyer => keyer.BusType)
             .ThenBy(keyer => keyer.Priority)
             .SelectMany(keyer => keyer.Overlays.Where(overlay => overlay.IsVisible))
