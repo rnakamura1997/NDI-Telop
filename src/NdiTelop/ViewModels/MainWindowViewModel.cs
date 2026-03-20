@@ -23,9 +23,10 @@ public partial class MainWindowViewModel : ObservableObject
     private static Preset CreateDefaultPreset()
     {
         var preset = new Preset { Name = "New Preset" };
-        preset.TextBlocks.Add(new Models.TextBlock
+        preset.GetKeyer(KeyerDestination.Usk1).TextBlocks.Add(new Models.TextBlock
         {
             Name = "Text Block 1",
+            DestinationKeyer = KeyerDestination.Usk1,
             TextStyle = new TextStyleSettings { FontSize = 48, Color = "#FFFFFF" },
             TextLayout = new TextLayoutSettings(),
             TextLines = [new TextLine { Text = "Line 1", FontSize = 48, Color = "#FFFFFF" }]
@@ -65,7 +66,8 @@ public partial class MainWindowViewModel : ObservableObject
         value?.EnsureTextBlocksInitialized();
         AttachOverlayListeners(value);
         AttachTextBlockListeners(value);
-        SelectedTextBlock = value?.TextBlocks.FirstOrDefault();
+        RefreshEditorCollections(value);
+        SelectedTextBlock = EditableTextBlocks.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -109,6 +111,12 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<RecentLogEntry> FilteredLogs { get; } = [];
     public ObservableCollection<Preset> FilteredPresets { get; } = [];
     public ObservableCollection<AssetItem> AssetItems { get; } = new();
+    public ObservableCollection<Models.TextBlock> EditableTextBlocks { get; } = [];
+    public ObservableCollection<OverlayItem> EditableOverlays { get; } = [];
+    public ObservableCollection<KeyerSlot> UskKeyers { get; } = [];
+    public ObservableCollection<KeyerSlot> DskKeyers { get; } = [];
+    public ObservableCollection<KeyerDestination> AvailableDestinationKeyers { get; } = new(KeyerDefinitions.OrderedDestinations);
+    public ObservableCollection<int> AvailableKeyerPriorities { get; } = [4, 3, 2, 1];
 
     [ObservableProperty]
     private AssetItem? _selectedAsset;
@@ -190,29 +198,41 @@ public partial class MainWindowViewModel : ObservableObject
 
 
     private Preset? _overlayBoundPreset;
+    private readonly List<KeyerSlot> _overlayBoundKeyers = [];
 
     private void AttachOverlayListeners(Preset? preset)
     {
         if (_overlayBoundPreset != null)
         {
-            _overlayBoundPreset.Overlays.CollectionChanged -= Overlays_CollectionChanged;
-            foreach (var overlay in _overlayBoundPreset.Overlays)
+            foreach (var keyer in _overlayBoundKeyers)
             {
-                overlay.PropertyChanged -= OverlayItem_PropertyChanged;
+                keyer.PropertyChanged -= KeyerSlot_PropertyChanged;
+                keyer.Overlays.CollectionChanged -= Overlays_CollectionChanged;
+                foreach (var overlay in keyer.Overlays)
+                {
+                    overlay.PropertyChanged -= OverlayItem_PropertyChanged;
+                }
             }
         }
 
         _overlayBoundPreset = preset;
+        _overlayBoundKeyers.Clear();
 
         if (_overlayBoundPreset == null)
         {
             return;
         }
 
-        _overlayBoundPreset.Overlays.CollectionChanged += Overlays_CollectionChanged;
-        foreach (var overlay in _overlayBoundPreset.Overlays)
+        _overlayBoundPreset.EnsureKeyersInitialized();
+        foreach (var keyer in _overlayBoundPreset.Keyers)
         {
-            overlay.PropertyChanged += OverlayItem_PropertyChanged;
+            _overlayBoundKeyers.Add(keyer);
+            keyer.PropertyChanged += KeyerSlot_PropertyChanged;
+            keyer.Overlays.CollectionChanged += Overlays_CollectionChanged;
+            foreach (var overlay in keyer.Overlays)
+            {
+                overlay.PropertyChanged += OverlayItem_PropertyChanged;
+            }
         }
     }
 
@@ -234,6 +254,7 @@ public partial class MainWindowViewModel : ObservableObject
             }
         }
 
+        RefreshEditorCollections(SelectedPreset);
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -245,32 +266,45 @@ public partial class MainWindowViewModel : ObservableObject
             or nameof(OverlayItem.Width)
             or nameof(OverlayItem.Height)
             or nameof(OverlayItem.Opacity)
-            or nameof(OverlayItem.IsVisible))
+            or nameof(OverlayItem.IsVisible)
+            or nameof(OverlayItem.DestinationKeyer))
         {
+            if (sender is OverlayItem overlay && e.PropertyName == nameof(OverlayItem.DestinationKeyer))
+            {
+                MoveOverlayToDestination(overlay);
+            }
+
             OnPropertyChanged(nameof(SelectedPreset));
         }
     }
 
     private Preset? _textBlockBoundPreset;
+    private readonly List<KeyerSlot> _textBlockBoundKeyers = [];
 
     private void AttachTextBlockListeners(Preset? preset)
     {
         if (_textBlockBoundPreset != null)
         {
-            _textBlockBoundPreset.TextBlocks.CollectionChanged -= TextBlocks_CollectionChanged;
-            foreach (var block in _textBlockBoundPreset.TextBlocks)
+            foreach (var keyer in _textBlockBoundKeyers)
             {
-                block.TextLines.CollectionChanged -= TextLines_CollectionChanged;
-                block.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
-                block.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
-                foreach (var line in block.TextLines)
+                keyer.PropertyChanged -= KeyerSlot_PropertyChanged;
+                keyer.TextBlocks.CollectionChanged -= TextBlocks_CollectionChanged;
+                foreach (var block in keyer.TextBlocks)
                 {
-                    line.PropertyChanged -= TextLine_PropertyChanged;
+                    block.PropertyChanged -= TextBlock_PropertyChanged;
+                    block.TextLines.CollectionChanged -= TextLines_CollectionChanged;
+                    block.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
+                    block.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+                    foreach (var line in block.TextLines)
+                    {
+                        line.PropertyChanged -= TextLine_PropertyChanged;
+                    }
                 }
             }
         }
 
         _textBlockBoundPreset = preset;
+        _textBlockBoundKeyers.Clear();
 
         if (_textBlockBoundPreset == null)
         {
@@ -278,7 +312,23 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         _textBlockBoundPreset.EnsureTextBlocksInitialized();
-        _textBlockBoundPreset.TextBlocks.CollectionChanged += TextBlocks_CollectionChanged;
+        foreach (var keyer in _textBlockBoundPreset.Keyers)
+        {
+            _textBlockBoundKeyers.Add(keyer);
+            keyer.PropertyChanged += KeyerSlot_PropertyChanged;
+            keyer.TextBlocks.CollectionChanged += TextBlocks_CollectionChanged;
+            foreach (var block in keyer.TextBlocks)
+            {
+                block.PropertyChanged += TextBlock_PropertyChanged;
+                block.TextLines.CollectionChanged += TextLines_CollectionChanged;
+                block.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
+                block.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
+                foreach (var line in block.TextLines)
+                {
+                    line.PropertyChanged += TextLine_PropertyChanged;
+                }
+            }
+        }
     }
 
     private void TextBlocks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -287,6 +337,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             foreach (var removed in e.OldItems.OfType<Models.TextBlock>())
             {
+                removed.PropertyChanged -= TextBlock_PropertyChanged;
                 removed.TextLines.CollectionChanged -= TextLines_CollectionChanged;
                 removed.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
                 removed.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
@@ -301,6 +352,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             foreach (var added in e.NewItems.OfType<Models.TextBlock>())
             {
+                added.PropertyChanged += TextBlock_PropertyChanged;
                 added.TextLines.CollectionChanged += TextLines_CollectionChanged;
                 added.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
                 added.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
@@ -311,11 +363,28 @@ public partial class MainWindowViewModel : ObservableObject
             }
         }
 
-        if (SelectedPreset != null && SelectedTextBlock != null && !SelectedPreset.TextBlocks.Contains(SelectedTextBlock))
+        RefreshEditorCollections(SelectedPreset);
+        if (SelectedTextBlock != null && !EditableTextBlocks.Contains(SelectedTextBlock))
         {
-            SelectedTextBlock = SelectedPreset.TextBlocks.FirstOrDefault();
+            SelectedTextBlock = EditableTextBlocks.FirstOrDefault();
         }
 
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private void TextBlock_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Models.TextBlock.DestinationKeyer) && sender is Models.TextBlock block)
+        {
+            MoveTextBlockToDestination(block);
+        }
+
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private void KeyerSlot_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RefreshEditorCollections(SelectedPreset);
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -458,7 +527,8 @@ public partial class MainWindowViewModel : ObservableObject
         EnsureTextStyleDefaults(SelectedPreset);
         AttachOverlayListeners(SelectedPreset);
         AttachTextBlockListeners(SelectedPreset);
-        SelectedTextBlock = SelectedPreset?.TextBlocks.FirstOrDefault();
+        RefreshEditorCollections(SelectedPreset);
+        SelectedTextBlock = EditableTextBlocks.FirstOrDefault();
 
         // コマンドの初期化
         ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
@@ -594,6 +664,90 @@ public partial class MainWindowViewModel : ObservableObject
         };
     }
 
+    private void RefreshEditorCollections(Preset? preset)
+    {
+        EditableTextBlocks.Clear();
+        EditableOverlays.Clear();
+        UskKeyers.Clear();
+        DskKeyers.Clear();
+
+        if (preset == null)
+        {
+            return;
+        }
+
+        preset.EnsureTextBlocksInitialized();
+        foreach (var keyer in preset.UskKeyers)
+        {
+            UskKeyers.Add(keyer);
+        }
+
+        foreach (var keyer in preset.DskKeyers)
+        {
+            DskKeyers.Add(keyer);
+        }
+
+        foreach (var block in preset.GetAllTextBlocks())
+        {
+            EditableTextBlocks.Add(block);
+        }
+
+        foreach (var overlay in preset.GetAllOverlays())
+        {
+            EditableOverlays.Add(overlay);
+        }
+    }
+
+    private void MoveTextBlockToDestination(Models.TextBlock block)
+    {
+        if (SelectedPreset == null)
+        {
+            return;
+        }
+
+        foreach (var keyer in SelectedPreset.Keyers)
+        {
+            if (keyer.Destination == block.DestinationKeyer)
+            {
+                if (!keyer.TextBlocks.Contains(block))
+                {
+                    keyer.TextBlocks.Add(block);
+                }
+            }
+            else if (keyer.TextBlocks.Contains(block))
+            {
+                keyer.TextBlocks.Remove(block);
+            }
+        }
+
+        RefreshEditorCollections(SelectedPreset);
+    }
+
+    private void MoveOverlayToDestination(OverlayItem overlay)
+    {
+        if (SelectedPreset == null)
+        {
+            return;
+        }
+
+        foreach (var keyer in SelectedPreset.Keyers)
+        {
+            if (keyer.Destination == overlay.DestinationKeyer)
+            {
+                if (!keyer.Overlays.Contains(overlay))
+                {
+                    keyer.Overlays.Add(overlay);
+                }
+            }
+            else if (keyer.Overlays.Contains(overlay))
+            {
+                keyer.Overlays.Remove(overlay);
+            }
+        }
+
+        RefreshEditorCollections(SelectedPreset);
+    }
+
     [RelayCommand]
     public async Task LoadPresetsAsync()
     {
@@ -607,6 +761,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         RefreshFilteredPresets();
         SelectedPreset ??= FilteredPresets.FirstOrDefault();
+        RefreshEditorCollections(SelectedPreset);
         Status = $"Loaded {Presets.Count} presets.";
         Log.Information("Loaded presets count: {Count}", Presets.Count);
     }
@@ -779,6 +934,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         RefreshFilteredPresets();
         SelectedPreset ??= FilteredPresets.FirstOrDefault();
+        RefreshEditorCollections(SelectedPreset);
         Status = importedCount > 0
             ? $"Imported {importedCount} presets."
             : "No presets were imported.";
@@ -910,7 +1066,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         preset.EnsureTextBlocksInitialized();
 
-        foreach (var block in preset.TextBlocks)
+        foreach (var block in preset.GetAllTextBlocks())
         {
             block.TextStyle ??= new TextStyleSettings();
             block.TextLayout ??= new TextLayoutSettings();
@@ -980,7 +1136,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         SelectedPreset.EnsureTextBlocksInitialized();
-        var blockIndex = SelectedPreset.TextBlocks.Count + 1;
+        var blockIndex = EditableTextBlocks.Count + 1;
         var fontFamily = AvailableFontFamilies.FirstOrDefault() ?? "Meiryo";
 
         var block = new Models.TextBlock
@@ -991,7 +1147,9 @@ public partial class MainWindowViewModel : ObservableObject
             TextLines = [new TextLine { Text = $"Line {blockIndex}", FontFamily = fontFamily, FontSize = 48, Color = "#FFFFFF" }]
         };
 
-        SelectedPreset.TextBlocks.Add(block);
+        SelectedPreset.GetKeyer(KeyerDestination.Usk1).TextBlocks.Add(block);
+        block.DestinationKeyer = KeyerDestination.Usk1;
+        RefreshEditorCollections(SelectedPreset);
         SelectedTextBlock = block;
     }
 
@@ -1003,15 +1161,17 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (SelectedPreset.TextBlocks.Count <= 1)
+        if (EditableTextBlocks.Count <= 1)
         {
             return;
         }
 
-        var index = SelectedPreset.TextBlocks.IndexOf(block);
-        SelectedPreset.TextBlocks.Remove(block);
-        SelectedTextBlock = SelectedPreset.TextBlocks.ElementAtOrDefault(Math.Max(0, index - 1))
-            ?? SelectedPreset.TextBlocks.FirstOrDefault();
+        var index = EditableTextBlocks.IndexOf(block);
+        var keyer = SelectedPreset.GetKeyer(block.DestinationKeyer);
+        keyer.TextBlocks.Remove(block);
+        RefreshEditorCollections(SelectedPreset);
+        SelectedTextBlock = EditableTextBlocks.ElementAtOrDefault(Math.Max(0, index - 1))
+            ?? EditableTextBlocks.FirstOrDefault();
     }
 
     public Task ImportOverlayImageAsync(string sourcePath)
@@ -1025,7 +1185,9 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             var relativePath = _assetService.ImportImage(sourcePath);
-            SelectedPreset.Overlays.Add(CreateOverlayItem(relativePath));
+            var overlay = CreateOverlayItem(relativePath);
+            SelectedPreset.GetKeyer(overlay.DestinationKeyer).Overlays.Add(overlay);
+            RefreshEditorCollections(SelectedPreset);
 
             Status = $"Image imported: {relativePath}";
             Log.Information("Overlay image imported and attached: {RelativePath}", relativePath);
@@ -1049,7 +1211,8 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         var overlay = CreateOverlayItem(relativePath, dropX, dropY, centerOnDrop);
-        SelectedPreset.Overlays.Add(overlay);
+        SelectedPreset.GetKeyer(overlay.DestinationKeyer).Overlays.Add(overlay);
+        RefreshEditorCollections(SelectedPreset);
         Status = $"Overlay set: {Path.GetFileName(relativePath)}";
         OnPropertyChanged(nameof(SelectedPreset));
     }
@@ -1082,6 +1245,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         return new OverlayItem
         {
+            DestinationKeyer = KeyerDestination.Usk1,
             Path = relativePath,
             X = (int)Math.Round(x),
             Y = (int)Math.Round(y),
@@ -1128,6 +1292,19 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedPreset.Background.AssetPath = SelectedAsset.RelativePath;
         SelectedPreset.Background.Alpha = 1.0;
         Status = $"Background set: {SelectedAsset.FileName}";
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    [RelayCommand]
+    private void ToggleKeyer(KeyerSlot? keyer)
+    {
+        if (keyer == null)
+        {
+            return;
+        }
+
+        keyer.KeyOn = !keyer.KeyOn;
+        RefreshEditorCollections(SelectedPreset);
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
