@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using NewTek.NDI;
@@ -133,6 +134,18 @@ public class NdiService : INdiService
 
         _ndiSender.Send(videoFrame);
         await Task.CompletedTask;
+    }
+
+    public async Task SendRenderedFrameAsync(
+        NdiChannelType channel,
+        RenderService renderService,
+        Preset preset,
+        NdiConfig ndiConfig,
+        IReadOnlyDictionary<KeyerDestination, KeyerTransitionState>? keyerTransitions = null,
+        KeyerDestination? soloKeyerDestination = null)
+    {
+        using var frame = renderService.Render(preset, ndiConfig.ResolutionWidth, ndiConfig.ResolutionHeight, soloKeyerDestination, keyerTransitions);
+        await SendFrameAsync(channel, frame);
     }
 
     public async Task SetActiveAsync(NdiChannelType channel, bool active)

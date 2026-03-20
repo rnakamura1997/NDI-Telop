@@ -127,7 +127,8 @@ public class Preset
                     Name = destination.ToDisplayName(),
                     KeyOn = destination == KeyerDestination.Usk1,
                     Opacity = 1.0,
-                    Priority = destination.ToDefaultPriority()
+                    Priority = destination.ToDefaultPriority(),
+                    Animation = new AnimationConfig()
                 });
                 continue;
             }
@@ -135,6 +136,7 @@ public class Preset
             existing.Name = string.IsNullOrWhiteSpace(existing.Name) ? destination.ToDisplayName() : existing.Name;
             existing.Opacity = Math.Clamp(existing.Opacity, 0.0, 1.0);
             existing.Priority = existing.Priority == 0 ? destination.ToDefaultPriority() : existing.Priority;
+            existing.Animation ??= new AnimationConfig();
         }
     }
 }
