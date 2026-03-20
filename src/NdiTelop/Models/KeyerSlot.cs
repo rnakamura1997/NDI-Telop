@@ -18,6 +18,12 @@ public partial class KeyerSlot : ObservableObject
     [ObservableProperty]
     private int _priority;
 
+    [ObservableProperty]
+    private AnimationConfig _animation = new();
+
+    [ObservableProperty]
+    private bool _isTransitioning;
+
     public ObservableCollection<TextBlock> TextBlocks { get; set; } = [];
 
     public ObservableCollection<OverlayItem> Overlays { get; set; } = [];

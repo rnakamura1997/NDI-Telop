@@ -17,9 +17,12 @@ public class RenderService : IRenderService
     }
 
     public SKBitmap Render(Preset preset, int width, int height)
-        => Render(preset, width, height, null);
+        => Render(preset, width, height, null, null);
 
     public SKBitmap Render(Preset preset, int width, int height, KeyerDestination? soloKeyerDestination)
+        => Render(preset, width, height, soloKeyerDestination, null);
+
+    public SKBitmap Render(Preset preset, int width, int height, KeyerDestination? soloKeyerDestination, IReadOnlyDictionary<KeyerDestination, KeyerTransitionState>? keyerTransitions)
     {
         var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(bitmap);
@@ -30,12 +33,16 @@ public class RenderService : IRenderService
 
         foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Usk, soloKeyerDestination))
         {
-            DrawKeyer(canvas, keyer, width, height);
+            KeyerTransitionState? transition = null;
+            keyerTransitions?.TryGetValue(keyer.Destination, out transition);
+            DrawKeyer(canvas, keyer, width, height, transition);
         }
 
         foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Dsk, soloKeyerDestination))
         {
-            DrawKeyer(canvas, keyer, width, height);
+            KeyerTransitionState? transition = null;
+            keyerTransitions?.TryGetValue(keyer.Destination, out transition);
+            DrawKeyer(canvas, keyer, width, height, transition);
         }
 
         return bitmap;
@@ -141,24 +148,113 @@ public class RenderService : IRenderService
         canvas.DrawRect(0, 0, width, height, paint);
     }
 
-    private void DrawKeyer(SKCanvas canvas, KeyerSlot keyer, int width, int height)
+    private void DrawKeyer(SKCanvas canvas, KeyerSlot keyer, int width, int height, KeyerTransitionState? transition)
     {
-        if (!keyer.KeyOn)
-        {
-            return;
-        }
-
         var opacity = Math.Clamp(keyer.Opacity, 0.0, 1.0);
         if (opacity <= 0)
         {
             return;
         }
 
-        using var layerPaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(opacity * 255)) };
-        canvas.SaveLayer(layerPaint);
-        DrawTextBlocks(canvas, keyer.TextBlocks, width, height);
-        DrawOverlays(canvas, keyer.Overlays, width, height);
-        canvas.Restore();
+        if (transition == null)
+        {
+            if (!keyer.KeyOn)
+            {
+                return;
+            }
+
+            using var layerPaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(opacity * 255)) };
+            canvas.SaveLayer(layerPaint);
+            DrawTextBlocks(canvas, keyer.TextBlocks, width, height);
+            DrawOverlays(canvas, keyer.Overlays, width, height);
+            canvas.Restore();
+            return;
+        }
+
+        var visibilityProgress = transition.GetVisibilityProgress();
+        if (visibilityProgress <= 0f)
+        {
+            return;
+        }
+
+        using var keyerBitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (var keyerCanvas = new SKCanvas(keyerBitmap))
+        {
+            keyerCanvas.Clear(SKColors.Transparent);
+            using var layerPaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(opacity * 255)) };
+            keyerCanvas.SaveLayer(layerPaint);
+            DrawTextBlocks(keyerCanvas, keyer.TextBlocks, width, height);
+            DrawOverlays(keyerCanvas, keyer.Overlays, width, height);
+            keyerCanvas.Restore();
+        }
+
+        DrawTransitionedKeyerLayer(canvas, keyerBitmap, visibilityProgress, transition.GetTransitionType(), width, height);
+    }
+
+    private static void DrawTransitionedKeyerLayer(SKCanvas canvas, SKBitmap keyerBitmap, float visibilityProgress, string? transitionType, int width, int height)
+    {
+        var progress = Clamp01(visibilityProgress);
+        var normalizedTransitionType = string.IsNullOrWhiteSpace(transitionType) ? "fade" : transitionType.Trim();
+
+        if (string.Equals(normalizedTransitionType, "cut", StringComparison.OrdinalIgnoreCase))
+        {
+            if (progress >= 1f)
+            {
+                canvas.DrawBitmap(keyerBitmap, 0, 0);
+            }
+
+            return;
+        }
+
+        if (string.Equals(normalizedTransitionType, "slide", StringComparison.OrdinalIgnoreCase))
+        {
+            var x = width * (1f - progress);
+            using var paint = new SKPaint { IsAntialias = true };
+            canvas.DrawBitmap(keyerBitmap, x, 0, paint);
+            return;
+        }
+
+        if (IsWipeTransition(normalizedTransitionType, out var isVertical))
+        {
+            if (isVertical)
+            {
+                var wipeHeight = height * progress;
+                if (wipeHeight > 0)
+                {
+                    var sourceRect = new SKRect(0, 0, width, wipeHeight);
+                    var destRect = new SKRect(0, 0, width, wipeHeight);
+                    canvas.DrawBitmap(keyerBitmap, sourceRect, destRect);
+                }
+            }
+            else
+            {
+                var wipeWidth = width * progress;
+                if (wipeWidth > 0)
+                {
+                    var sourceRect = new SKRect(0, 0, wipeWidth, height);
+                    var destRect = new SKRect(0, 0, wipeWidth, height);
+                    canvas.DrawBitmap(keyerBitmap, sourceRect, destRect);
+                }
+            }
+
+            return;
+        }
+
+        if (string.Equals(normalizedTransitionType, "zoom", StringComparison.OrdinalIgnoreCase))
+        {
+            var easedProgress = Math.Max(0.05f, progress);
+            var scaledWidth = width * easedProgress;
+            var scaledHeight = height * easedProgress;
+            var left = (width - scaledWidth) / 2f;
+            var top = (height - scaledHeight) / 2f;
+
+            using var zoomPaint = new SKPaint { Color = new SKColor(255, 255, 255, (byte)(255 * progress)), IsAntialias = true };
+            canvas.DrawBitmap(keyerBitmap, new SKRect(left, top, left + scaledWidth, top + scaledHeight), zoomPaint);
+            return;
+        }
+
+        using var fadePaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(255 * progress)), IsAntialias = true };
+        canvas.DrawBitmap(keyerBitmap, 0, 0, fadePaint);
     }
 
     private static IEnumerable<KeyerSlot> GetRenderOrderedKeyers(Preset preset, KeyerBusType busType, KeyerDestination? soloKeyerDestination)

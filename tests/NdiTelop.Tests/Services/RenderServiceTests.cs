@@ -1,6 +1,7 @@
 using NdiTelop.Models;
 using NdiTelop.Services;
 using SkiaSharp;
+using System.Collections.Generic;
 using Xunit;
 
 namespace NdiTelop.Tests.Services;
@@ -531,6 +532,65 @@ public class RenderServiceTests
         Assert.True(bounds.Value.Top < 80);
         Assert.True(bounds.Value.Right > 320);
         Assert.True(bounds.Value.Bottom > 120);
+    }
+
+
+    [Fact]
+    public void Render_WithKeyerTransition_ShouldAnimateOnlyTargetKeyer()
+    {
+        var service = new RenderService();
+        var preset = new Preset
+        {
+            Background = new BackgroundStyle { Type = "transparent" },
+            TextLines = []
+        };
+
+        var usk1 = preset.GetKeyer(KeyerDestination.Usk1);
+        usk1.KeyOn = true;
+        usk1.Overlays.Add(new OverlayItem { X = 0, Y = 0, Width = 40, Height = 40, Path = string.Empty, IsVisible = false });
+        usk1.TextBlocks.Clear();
+        usk1.TextBlocks.Add(new NdiTelop.Models.TextBlock
+        {
+            Name = "Left",
+            DestinationKeyer = KeyerDestination.Usk1,
+            TextStyle = new TextStyleSettings { FontSize = 36, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Left, VerticalAlignment = VerticalTextAlignment.Top, OffsetX = 0, OffsetY = 0 },
+            TextLines = [new TextLine { Text = "A" }]
+        });
+
+        var dsk1 = preset.GetKeyer(KeyerDestination.Dsk1);
+        dsk1.KeyOn = true;
+        dsk1.TextBlocks.Clear();
+        dsk1.TextBlocks.Add(new NdiTelop.Models.TextBlock
+        {
+            Name = "Right",
+            DestinationKeyer = KeyerDestination.Dsk1,
+            TextStyle = new TextStyleSettings { FontSize = 36, Color = "#FFFFFF" },
+            TextLayout = new TextLayoutSettings { HorizontalAlignment = HorizontalTextAlignment.Right, VerticalAlignment = VerticalTextAlignment.Bottom, OffsetX = 0, OffsetY = 0 },
+            TextLines = [new TextLine { Text = "B" }]
+        });
+
+        var transitions = new Dictionary<KeyerDestination, KeyerTransitionState>
+        {
+            [KeyerDestination.Usk1] = new()
+            {
+                Destination = KeyerDestination.Usk1,
+                FromKeyOn = false,
+                ToKeyOn = true,
+                Progress = 0f,
+                Config = new AnimationConfig { InType = "cut", OutType = "cut", SpeedSeconds = 0.3f }
+            }
+        };
+
+        using var animated = service.Render(preset, 320, 180, null, transitions);
+        using var staticFrame = service.Render(preset, 320, 180);
+
+        var animatedBounds = GetDrawnBounds(animated);
+        var staticBounds = GetDrawnBounds(staticFrame);
+
+        Assert.NotNull(animatedBounds);
+        Assert.NotNull(staticBounds);
+        Assert.True(animatedBounds!.Value.Left > staticBounds!.Value.Left);
     }
 
     private static SKRectI? GetDrawnBounds(SKBitmap bitmap)

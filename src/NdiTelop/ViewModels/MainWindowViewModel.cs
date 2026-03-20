@@ -15,6 +15,7 @@ using NdiTelop.Logging;
 using Serilog;
 using Serilog.Events;
 using System.IO;
+using System.Collections.Generic;
 
 namespace NdiTelop.ViewModels;
 
@@ -181,11 +182,24 @@ public partial class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<string> AvailableTransitionTypes { get; } = new ObservableCollection<string>
     {
+        "cut",
         "fade",
         "slide",
         "wipe",
         "wipe-vertical",
         "zoom"
+    };
+
+    public ObservableCollection<float> AvailableAnimationDurations { get; } = new ObservableCollection<float>
+    {
+        0.1f,
+        0.2f,
+        0.3f,
+        0.5f,
+        0.75f,
+        1.0f,
+        1.5f,
+        2.0f
     };
 
     [ObservableProperty]
@@ -503,6 +517,7 @@ public partial class MainWindowViewModel : ObservableObject
     private Preset? _transitionFromPreset;
     private Preset? _transitionToPreset;
     private float _transitionProgress;
+    private readonly Dictionary<KeyerDestination, KeyerTransitionState> _activeKeyerTransitions = [];
 
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
@@ -1332,8 +1347,62 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         keyer.KeyOn = !keyer.KeyOn;
+        CompleteKeyerTransition(keyer.Destination);
         RefreshEditorCollections(SelectedPreset);
         OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    [RelayCommand]
+    private Task RunKeyerAutoAsync(KeyerSlot? keyer)
+    {
+        if (keyer == null)
+        {
+            Status = "AUTO ignored: no keyer selected.";
+            return Task.CompletedTask;
+        }
+
+        if (CurrentProgramPreset == null)
+        {
+            Status = $"AUTO ignored: Program is empty ({keyer.Name}).";
+            return Task.CompletedTask;
+        }
+
+        if (!IsProgramActive)
+        {
+            Status = $"AUTO ignored: Program channel is inactive ({keyer.Name}).";
+            return Task.CompletedTask;
+        }
+
+        var programKeyer = CurrentProgramPreset.GetKeyer(keyer.Destination);
+        var previousKeyOn = programKeyer.KeyOn;
+        var nextKeyOn = !programKeyer.KeyOn;
+        programKeyer.KeyOn = nextKeyOn;
+        programKeyer.Animation ??= new AnimationConfig();
+
+        var transitionConfig = CloneAnimation(programKeyer.Animation);
+        transitionConfig.OutType = transitionConfig.InType;
+
+        _activeKeyerTransitions[keyer.Destination] = new KeyerTransitionState
+        {
+            Destination = keyer.Destination,
+            FromKeyOn = previousKeyOn,
+            ToKeyOn = nextKeyOn,
+            Progress = 0f,
+            Config = transitionConfig
+        };
+
+        programKeyer.IsTransitioning = true;
+        if (ReferenceEquals(SelectedPreset, CurrentProgramPreset) && !ReferenceEquals(keyer, programKeyer))
+        {
+            keyer.KeyOn = nextKeyOn;
+            keyer.IsTransitioning = true;
+        }
+
+        EnsureTransitionTimerRunning();
+        Status = $"AUTO: {programKeyer.Name} {(nextKeyOn ? "ON" : "OFF")}";
+        RefreshEditorCollections(SelectedPreset);
+        OnPropertyChanged(nameof(SelectedPreset));
+        return Task.CompletedTask;
     }
 
     public void ReportSelectionAlignment(string description)
@@ -1452,10 +1521,13 @@ public partial class MainWindowViewModel : ObservableObject
 
         if (immediate)
         {
-            _transitionTimer?.Stop();
             _transitionFromPreset = null;
             _transitionToPreset = null;
             _transitionProgress = 1f;
+            if (_activeKeyerTransitions.Count == 0)
+            {
+                _transitionTimer?.Stop();
+            }
         }
         else
         {
@@ -1463,9 +1535,7 @@ public partial class MainWindowViewModel : ObservableObject
             _transitionToPreset = preset;
             _transitionProgress = 0f;
 
-            _transitionTimer?.Stop();
-            _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
-            _transitionTimer.Start();
+            EnsureTransitionTimerRunning();
         }
 
         CurrentProgramPreset = preset;
@@ -1512,19 +1582,100 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void TransitionTimer_Tick(object? sender, EventArgs e)
     {
-        _transitionProgress += 1f / (0.5f * 60); // 0.5 second transition at 60fps
+        var hasProgramTransition = AdvanceProgramTransition();
+        var hasKeyerTransitions = AdvanceKeyerTransitions();
+
+        if (!hasProgramTransition && !hasKeyerTransitions)
+        {
+            _transitionTimer?.Stop();
+        }
+
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private bool AdvanceProgramTransition()
+    {
+        if (_transitionFromPreset == null || _transitionToPreset == null)
+        {
+            return false;
+        }
+
+        var durationSeconds = Math.Max(0.01f, _transitionToPreset.Animation?.SpeedSeconds ?? 0.3f);
+        _transitionProgress += (float)(0.016 / durationSeconds);
 
         if (_transitionProgress >= 1f)
         {
             _transitionProgress = 1f;
-            _transitionTimer?.Stop();
             _transitionFromPreset = null;
             _transitionToPreset = null;
+            return false;
         }
 
-        // Force redraw of the preview canvas
-        OnPropertyChanged(nameof(SelectedPreset));
+        return true;
     }
+
+    private bool AdvanceKeyerTransitions()
+    {
+        if (_activeKeyerTransitions.Count == 0)
+        {
+            return false;
+        }
+
+        var completed = new List<KeyerDestination>();
+        foreach (var pair in _activeKeyerTransitions)
+        {
+            var durationSeconds = Math.Max(0.01f, pair.Value.Config?.SpeedSeconds ?? 0.3f);
+            pair.Value.Progress = Math.Clamp(pair.Value.Progress + (float)(0.016 / durationSeconds), 0f, 1f);
+            if (pair.Value.Progress >= 1f)
+            {
+                completed.Add(pair.Key);
+            }
+        }
+
+        foreach (var destination in completed)
+        {
+            CompleteKeyerTransition(destination);
+        }
+
+        return _activeKeyerTransitions.Count > 0;
+    }
+
+    private void CompleteKeyerTransition(KeyerDestination destination)
+    {
+        _activeKeyerTransitions.Remove(destination);
+
+        if (CurrentProgramPreset != null)
+        {
+            CurrentProgramPreset.GetKeyer(destination).IsTransitioning = false;
+        }
+
+        if (SelectedPreset != null)
+        {
+            SelectedPreset.GetKeyer(destination).IsTransitioning = false;
+        }
+    }
+
+    private void EnsureTransitionTimerRunning()
+    {
+        if (_transitionTimer == null)
+        {
+            _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
+        }
+
+        if (!_transitionTimer.IsEnabled)
+        {
+            _transitionTimer.Start();
+        }
+    }
+
+    private static AnimationConfig CloneAnimation(AnimationConfig? config)
+        => new()
+        {
+            InType = config?.InType ?? "cut",
+            OutType = config?.OutType ?? config?.InType ?? "cut",
+            SpeedSeconds = config?.SpeedSeconds ?? 0.3f,
+            Easing = config?.Easing ?? "Linear"
+        };
 
     private async void AutoClearTimer_Tick(object? sender, EventArgs e)
     {
@@ -1611,26 +1762,34 @@ public partial class MainWindowViewModel : ObservableObject
         {
             if (CurrentProgramPreset != null)
             {
-                SKBitmap programBitmap;
                 if (_transitionFromPreset != null && _transitionToPreset != null)
                 {
-                    programBitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
+                    using var programBitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
+                    await _ndiService.SendFrameAsync(NdiChannelType.Program, programBitmap);
+                }
+                else if (_ndiService is NdiService concreteNdiService)
+                {
+                    await concreteNdiService.SendRenderedFrameAsync(NdiChannelType.Program, _renderService, CurrentProgramPreset, NdiConfig, _activeKeyerTransitions);
                 }
                 else
                 {
-                    programBitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
-                }
-
-                using (programBitmap)
-                {
+                    using var programBitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, null, _activeKeyerTransitions);
                     await _ndiService.SendFrameAsync(NdiChannelType.Program, programBitmap);
                 }
             }
 
             if (CurrentPreviewPreset != null)
             {
-                using var previewBitmap = _renderService.Render(CurrentPreviewPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight);
-                await _ndiService.SendFrameAsync(NdiChannelType.Preview, previewBitmap);
+                var previewTransitions = ReferenceEquals(CurrentPreviewPreset, CurrentProgramPreset) ? _activeKeyerTransitions : null;
+                if (_ndiService is NdiService concreteNdiPreviewService)
+                {
+                    await concreteNdiPreviewService.SendRenderedFrameAsync(NdiChannelType.Preview, _renderService, CurrentPreviewPreset, NdiConfig, previewTransitions);
+                }
+                else
+                {
+                    using var previewBitmap = _renderService.Render(CurrentPreviewPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, null, previewTransitions);
+                    await _ndiService.SendFrameAsync(NdiChannelType.Preview, previewBitmap);
+                }
             }
         }
         catch (Exception ex)

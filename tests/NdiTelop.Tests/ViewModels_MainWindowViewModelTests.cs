@@ -319,4 +319,40 @@ public class ViewModels_MainWindowViewModelTests
         Assert.Equal("CUT ignored: Program channel is inactive.", vm.Status);
         Assert.Null(vm.CurrentProgramPreset);
     }
+
+    [Fact]
+    public async Task RunKeyerAuto_ShouldToggleProgramKeyerAndMarkTransitioning()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+        vm.IsProgramActive = true;
+
+        await vm.ShowPresetCommand.ExecuteAsync(preset);
+        var keyer = preset.GetKeyer(KeyerDestination.Usk1);
+        keyer.Animation.InType = "fade";
+        keyer.Animation.SpeedSeconds = 0.5f;
+        var originalState = keyer.KeyOn;
+
+        await vm.RunKeyerAutoCommand.ExecuteAsync(keyer);
+
+        Assert.Equal(!originalState, keyer.KeyOn);
+        Assert.True(keyer.IsTransitioning);
+        Assert.Equal($"AUTO: {keyer.Name} {(!originalState ? "ON" : "OFF")}", vm.Status);
+    }
+
+    [Fact]
+    public async Task RunKeyerAuto_ShouldBeSafe_WhenProgramIsUnavailable()
+    {
+        var preset = new Preset { Id = "p1", Name = "Preset1" };
+        var vm = CreateViewModel(new List<Preset> { preset });
+        var keyer = preset.GetKeyer(KeyerDestination.Usk1);
+
+        await vm.RunKeyerAutoCommand.ExecuteAsync(keyer);
+        Assert.Contains("Program is empty", vm.Status);
+
+        vm.CurrentProgramPreset = preset;
+        await vm.RunKeyerAutoCommand.ExecuteAsync(keyer);
+        Assert.Contains("Program channel is inactive", vm.Status);
+    }
+
 }
