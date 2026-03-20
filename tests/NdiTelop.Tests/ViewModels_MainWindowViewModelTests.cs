@@ -34,7 +34,7 @@ public class ViewModels_MainWindowViewModelTests
         var vm = CreateViewModel();
         Assert.NotNull(vm.SelectedPreset);
         Assert.Equal("New Preset", vm.SelectedPreset.Name);
-        Assert.Single(vm.SelectedPreset.TextBlocks);
+        Assert.Single(vm.SelectedPreset.GetAllTextBlocks());
         Assert.NotNull(vm.SelectedTextBlock);
         Assert.Equal("Ready", vm.Status);
     }
@@ -46,13 +46,13 @@ public class ViewModels_MainWindowViewModelTests
 
         vm.AddTextBlockCommand.Execute(null);
 
-        Assert.Equal(2, vm.SelectedPreset!.TextBlocks.Count);
+        Assert.Equal(2, vm.SelectedPreset!.GetAllTextBlocks().Count);
         Assert.Equal("Text Block 2", vm.SelectedTextBlock!.Name);
 
-        var originalBlock = vm.SelectedPreset.TextBlocks.First();
+        var originalBlock = vm.SelectedPreset.GetAllTextBlocks().First();
         vm.RemoveTextBlockCommand.Execute(vm.SelectedTextBlock);
 
-        Assert.Single(vm.SelectedPreset.TextBlocks);
+        Assert.Single(vm.SelectedPreset.GetAllTextBlocks());
         Assert.Same(originalBlock, vm.SelectedTextBlock);
     }
 
@@ -82,7 +82,7 @@ public class ViewModels_MainWindowViewModelTests
 
             vm.AddOverlayFromAsset("overlay.png", 300, 200, centerOnDrop: true);
 
-            var overlay = Assert.Single(vm.SelectedPreset!.Overlays);
+            var overlay = Assert.Single(vm.SelectedPreset!.GetAllOverlays());
             Assert.Equal(120, overlay.Width);
             Assert.Equal(60, overlay.Height);
             Assert.Equal(240, overlay.X);
@@ -123,7 +123,7 @@ public class ViewModels_MainWindowViewModelTests
 
             vm.SetSelectedAssetAsOverlayCommand.Execute(null);
 
-            var overlay = Assert.Single(vm.SelectedPreset!.Overlays);
+            var overlay = Assert.Single(vm.SelectedPreset!.GetAllOverlays());
             Assert.Equal("overlay.png", overlay.Path);
             Assert.Equal(40, overlay.Width);
             Assert.Equal(30, overlay.Height);

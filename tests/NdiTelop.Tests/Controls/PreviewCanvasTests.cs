@@ -86,19 +86,27 @@ public class PreviewCanvasTests
     }
 
     private static PreviewCanvas CreateCanvasWithOverlays(params OverlayItem[] overlays)
-        => new()
+    {
+        var preset = new Preset();
+        preset.EnsureTextBlocksInitialized();
+        var keyer = preset.GetKeyer(KeyerDestination.Usk1);
+        keyer.KeyOn = true;
+        foreach (var overlay in overlays)
         {
-            Preset = new Preset
-            {
-                Overlays = [.. overlays],
-                TextBlocks = []
-            },
+            overlay.DestinationKeyer = KeyerDestination.Usk1;
+            keyer.Overlays.Add(overlay);
+        }
+
+        return new PreviewCanvas
+        {
+            Preset = preset,
             NdiConfig = new NdiConfig
             {
                 ResolutionWidth = 1920,
                 ResolutionHeight = 1080
             }
         };
+    }
 
     private static void SelectOverlay(PreviewCanvas canvas, OverlayItem overlay, bool append)
     {

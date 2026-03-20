@@ -131,7 +131,7 @@ public class PresetServiceTests : IDisposable
         await reloaded.LoadPresetsAsync();
 
         var savedPreset = reloaded.Presets.Single(p => p.Id == preset.Id);
-        var overlay = Assert.Single(savedPreset.Overlays);
+        var overlay = Assert.Single(savedPreset.GetAllOverlays());
         Assert.Equal(456, overlay.Width);
         Assert.Equal(123, overlay.Height);
     }
@@ -385,7 +385,7 @@ public class PresetServiceTests : IDisposable
         Assert.NotNull(imported);
         Assert.Equal("Round Trip", imported!.Name);
         Assert.Equal(9, imported.AutoClearSeconds);
-        Assert.Equal("RT", imported.TextLines[0].Text);
+        Assert.Equal("RT", imported.PrimaryTextBlock.TextLines[0].Text);
         Assert.Equal(HorizontalTextAlignment.Left, imported.TextLayout.HorizontalAlignment);
         Assert.Equal(VerticalTextAlignment.Top, imported.TextLayout.VerticalAlignment);
         Assert.Equal(15, imported.TextLayout.OffsetX);

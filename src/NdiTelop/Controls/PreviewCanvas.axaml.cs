@@ -314,7 +314,7 @@ public partial class PreviewCanvas : UserControl
 
         var point = ToRenderPoint(e.GetPosition(this));
         viewModel.AddOverlayFromAsset(relativePath, point.X, point.Y, centerOnDrop: true);
-        if (Preset?.Overlays.LastOrDefault() is { } overlay)
+        if (Preset?.GetAllOverlays().LastOrDefault() is { } overlay)
         {
             SelectOverlay(overlay, append: false);
         }
@@ -395,12 +395,12 @@ public partial class PreviewCanvas : UserControl
 
     private void EnsureSelectionBelongsToPreset()
     {
-        _selectedTextBlocks.RemoveWhere(block => Preset?.TextBlocks.Contains(block) != true);
-        _selectedOverlays.RemoveWhere(overlay => Preset?.Overlays.Contains(overlay) != true);
+        _selectedTextBlocks.RemoveWhere(block => Preset?.GetAllTextBlocks().Contains(block) != true);
+        _selectedOverlays.RemoveWhere(overlay => Preset?.GetAllOverlays().Contains(overlay) != true);
         _selectionOrder.RemoveAll(entry => entry.Type switch
         {
-            SelectionItemType.TextBlock => entry.Item is not ModelTextBlock block || Preset?.TextBlocks.Contains(block) != true,
-            SelectionItemType.Overlay => entry.Item is not OverlayItem overlay || Preset?.Overlays.Contains(overlay) != true,
+            SelectionItemType.TextBlock => entry.Item is not ModelTextBlock block || Preset?.GetAllTextBlocks().Contains(block) != true,
+            SelectionItemType.Overlay => entry.Item is not OverlayItem overlay || Preset?.GetAllOverlays().Contains(overlay) != true,
             _ => true
         });
 
@@ -416,7 +416,7 @@ public partial class PreviewCanvas : UserControl
 
         if (SelectionCount == 0)
         {
-            if (Preset?.TextBlocks.FirstOrDefault() is { } block)
+            if (GetInteractiveTextBlocks().FirstOrDefault() is { } block)
             {
                 SelectTextBlock(block, append: false);
             }
@@ -598,7 +598,7 @@ public partial class PreviewCanvas : UserControl
             ClearSelection();
         }
 
-        foreach (var overlay in Preset?.Overlays ?? [])
+        foreach (var overlay in GetInteractiveOverlays())
         {
             if (_overlayBounds.TryGetValue(overlay, out var bounds) && selectionRect.Intersects(bounds))
             {
@@ -608,7 +608,7 @@ public partial class PreviewCanvas : UserControl
             }
         }
 
-        foreach (var block in Preset?.TextBlocks ?? [])
+        foreach (var block in GetInteractiveTextBlocks())
         {
             if (_textBlockBounds.TryGetValue(block, out var bounds) && selectionRect.Intersects(bounds))
             {
@@ -929,7 +929,7 @@ public partial class PreviewCanvas : UserControl
             return new HitTestResult(DragTargetType.OverlayResize, null, _selectedOverlay, resizeHandle);
         }
 
-        foreach (var overlay in Preset?.Overlays.Reverse() ?? Enumerable.Empty<OverlayItem>())
+        foreach (var overlay in GetInteractiveOverlays().Reverse())
         {
             if (_overlayBounds.TryGetValue(overlay, out var bounds) && bounds.Contains(point))
             {
@@ -937,7 +937,7 @@ public partial class PreviewCanvas : UserControl
             }
         }
 
-        foreach (var block in Preset?.TextBlocks.Reverse() ?? Enumerable.Empty<ModelTextBlock>())
+        foreach (var block in GetInteractiveTextBlocks().Reverse())
         {
             if (_textBlockBounds.TryGetValue(block, out var bounds) && bounds.Contains(point))
             {
@@ -963,7 +963,7 @@ public partial class PreviewCanvas : UserControl
             return;
         }
 
-        foreach (var block in Preset.TextBlocks)
+        foreach (var block in GetInteractiveTextBlocks())
         {
             if (TryMeasureBlock(block, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, out var bounds))
             {
@@ -976,7 +976,7 @@ public partial class PreviewCanvas : UserControl
     {
         _overlayBounds.Clear();
 
-        foreach (var overlay in Preset?.Overlays ?? [])
+        foreach (var overlay in GetInteractiveOverlays())
         {
             if (!overlay.IsVisible)
             {
@@ -1152,10 +1152,15 @@ public partial class PreviewCanvas : UserControl
             return;
         }
 
-        preset.TextBlocks.CollectionChanged += TextBlocks_CollectionChanged;
-        preset.Overlays.CollectionChanged += Overlays_CollectionChanged;
-        SubscribeToBlocks(preset.TextBlocks);
-        SubscribeToOverlays(preset.Overlays);
+        preset.EnsureTextBlocksInitialized();
+        foreach (var keyer in preset.Keyers)
+        {
+            keyer.PropertyChanged += NestedObject_PropertyChanged;
+            keyer.TextBlocks.CollectionChanged += TextBlocks_CollectionChanged;
+            keyer.Overlays.CollectionChanged += Overlays_CollectionChanged;
+            SubscribeToBlocks(keyer.TextBlocks);
+            SubscribeToOverlays(keyer.Overlays);
+        }
     }
 
     private void UnsubscribeFromPreset(Preset? preset)
@@ -1165,8 +1170,14 @@ public partial class PreviewCanvas : UserControl
             return;
         }
 
-        preset.TextBlocks.CollectionChanged -= TextBlocks_CollectionChanged;
-        preset.Overlays.CollectionChanged -= Overlays_CollectionChanged;
+        preset.EnsureTextBlocksInitialized();
+        foreach (var keyer in preset.Keyers)
+        {
+            keyer.PropertyChanged -= NestedObject_PropertyChanged;
+            keyer.TextBlocks.CollectionChanged -= TextBlocks_CollectionChanged;
+            keyer.Overlays.CollectionChanged -= Overlays_CollectionChanged;
+        }
+
         UnsubscribeFromBlocks(_subscribedBlocks.ToArray());
         UnsubscribeFromOverlays(_subscribedOverlays.ToArray());
     }
@@ -1285,8 +1296,27 @@ public partial class PreviewCanvas : UserControl
 
     private void NestedObject_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        EnsureSelectionBelongsToPreset();
         InvalidateVisual();
     }
+
+    private IReadOnlyList<ModelTextBlock> GetInteractiveTextBlocks()
+        => Preset?.Keyers
+            .Where(keyer => keyer.KeyOn)
+            .OrderBy(keyer => keyer.BusType)
+            .ThenBy(keyer => keyer.Priority)
+            .SelectMany(keyer => keyer.TextBlocks)
+            .ToList()
+            ?? [];
+
+    private IReadOnlyList<OverlayItem> GetInteractiveOverlays()
+        => Preset?.Keyers
+            .Where(keyer => keyer.KeyOn)
+            .OrderBy(keyer => keyer.BusType)
+            .ThenBy(keyer => keyer.Priority)
+            .SelectMany(keyer => keyer.Overlays.Where(overlay => overlay.IsVisible))
+            .ToList()
+            ?? [];
 
     private enum DragTargetType
     {

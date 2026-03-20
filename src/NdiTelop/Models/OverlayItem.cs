@@ -24,4 +24,7 @@ public partial class OverlayItem : ObservableObject
 
     [ObservableProperty]
     private bool _isVisible = true;
+
+    [ObservableProperty]
+    private KeyerDestination _destinationKeyer = KeyerDestination.Usk1;
 }

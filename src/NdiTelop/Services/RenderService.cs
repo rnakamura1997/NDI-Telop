@@ -24,8 +24,16 @@ public class RenderService : IRenderService
 
         DrawBackground(canvas, preset.Background, width, height);
         preset.EnsureTextBlocksInitialized();
-        DrawTextBlocks(canvas, preset.TextBlocks, width, height);
-        DrawOverlays(canvas, preset.Overlays, width, height);
+
+        foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Usk))
+        {
+            DrawKeyer(canvas, keyer, width, height);
+        }
+
+        foreach (var keyer in GetRenderOrderedKeyers(preset, KeyerBusType.Dsk))
+        {
+            DrawKeyer(canvas, keyer, width, height);
+        }
 
         return bitmap;
     }
@@ -129,6 +137,32 @@ public class RenderService : IRenderService
         using var paint = new SKPaint { Color = c };
         canvas.DrawRect(0, 0, width, height, paint);
     }
+
+    private void DrawKeyer(SKCanvas canvas, KeyerSlot keyer, int width, int height)
+    {
+        if (!keyer.KeyOn)
+        {
+            return;
+        }
+
+        var opacity = Math.Clamp(keyer.Opacity, 0.0, 1.0);
+        if (opacity <= 0)
+        {
+            return;
+        }
+
+        using var layerPaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(opacity * 255)) };
+        canvas.SaveLayer(layerPaint);
+        DrawTextBlocks(canvas, keyer.TextBlocks, width, height);
+        DrawOverlays(canvas, keyer.Overlays, width, height);
+        canvas.Restore();
+    }
+
+    private static IEnumerable<KeyerSlot> GetRenderOrderedKeyers(Preset preset, KeyerBusType busType)
+        => preset.Keyers
+            .Where(keyer => keyer.BusType == busType)
+            .OrderBy(keyer => keyer.Priority)
+            .ThenBy(keyer => keyer.Destination);
 
     private void DrawOverlays(SKCanvas canvas, IReadOnlyList<OverlayItem> overlays, int width, int height)
     {
