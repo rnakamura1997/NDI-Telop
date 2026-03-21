@@ -137,6 +137,79 @@ public class ViewModels_MainWindowViewModelTests
         }
     }
 
+
+    [Fact]
+    public async Task PlaylistCommands_ShouldAddCueAdvanceAndReorderItems()
+    {
+        var presets = new List<Preset>
+        {
+            new() { Id = "p1", Name = "Intro" },
+            new() { Id = "p2", Name = "Headline" },
+            new() { Id = "p3", Name = "Outro" }
+        };
+        var vm = CreateViewModel(presets);
+        vm.IsProgramActive = true;
+
+        vm.SelectedPreset = presets[0];
+        vm.AddSelectedPresetToPlaylistCommand.Execute(null);
+        vm.SelectedPreset = presets[1];
+        vm.AddSelectedPresetToPlaylistCommand.Execute(null);
+        vm.SelectedPreset = presets[2];
+        vm.AddSelectedPresetToPlaylistCommand.Execute(null);
+
+        vm.PlaylistItems[0].DisplayDurationSeconds = 2;
+        vm.PlaylistItems[1].DisplayDurationSeconds = 3;
+        vm.PlaylistItems[2].DisplayDurationSeconds = 4;
+
+        await vm.CuePlaylistItemCommand.ExecuteAsync(vm.PlaylistItems[0]);
+
+        Assert.Equal(0, vm.PlaylistCurrentIndex);
+        Assert.Same(presets[0], vm.CurrentProgramPreset);
+        Assert.Equal(2, vm.PlaylistRemainingSeconds);
+
+        await vm.NextCueCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, vm.PlaylistCurrentIndex);
+        Assert.Same(presets[1], vm.CurrentProgramPreset);
+        Assert.Equal(3, vm.PlaylistRemainingSeconds);
+
+        await vm.MovePlaylistItemAsync("p3", 1);
+
+        Assert.Equal(new[] { "p1", "p3", "p2" }, vm.PlaylistItems.Select(x => x.PresetId).ToArray());
+        Assert.Equal(2, vm.PlaylistCurrentIndex);
+    }
+
+    [Fact]
+    public async Task HandlePlaylistTickAsync_ShouldAutoAdvanceAndCompletePlaylist()
+    {
+        var presets = new List<Preset>
+        {
+            new() { Id = "p1", Name = "Intro" },
+            new() { Id = "p2", Name = "Headline" }
+        };
+        var vm = CreateViewModel(presets);
+        vm.IsProgramActive = true;
+        vm.IsPlaylistAutoAdvanceEnabled = true;
+
+        vm.SelectedPreset = presets[0];
+        vm.AddSelectedPresetToPlaylistCommand.Execute(null);
+        vm.SelectedPreset = presets[1];
+        vm.AddSelectedPresetToPlaylistCommand.Execute(null);
+        vm.PlaylistItems[0].DisplayDurationSeconds = 1;
+        vm.PlaylistItems[1].DisplayDurationSeconds = 1;
+
+        await vm.CuePlaylistItemCommand.ExecuteAsync(vm.PlaylistItems[0]);
+        await vm.HandlePlaylistTickAsync();
+
+        Assert.Equal(1, vm.PlaylistCurrentIndex);
+        Assert.Same(presets[1], vm.CurrentProgramPreset);
+
+        await vm.HandlePlaylistTickAsync();
+
+        Assert.False(vm.IsPlaylistRunning);
+        Assert.Equal("Playlist completed.", vm.Status);
+    }
+
     [Fact]
     public void RenderPreview_ShouldUpdateStatus()
     {

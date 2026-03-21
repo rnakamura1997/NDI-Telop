@@ -44,6 +44,7 @@ public partial class MainWindowViewModel : ObservableObject
     private AssetService _assetService;
     private readonly HotkeyService? _hotkeyService;
     private readonly ExternalDataSourceService _externalDataSourceService;
+    private readonly PlaylistController _playlistController = new();
     private readonly Dictionary<string, CancellationTokenSource> _dataRefreshTokens = [];
 
     [ObservableProperty]
@@ -118,6 +119,38 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<RecentLogEntry> FilteredLogs { get; } = [];
     public ObservableCollection<Preset> FilteredPresets { get; } = [];
     public ObservableCollection<AssetItem> AssetItems { get; } = new();
+
+    public ObservableCollection<PlaylistItem> PlaylistItems { get; } = [];
+
+    [ObservableProperty]
+    private PlaylistItem? _selectedPlaylistItem;
+
+    [ObservableProperty]
+    private int _playlistCurrentIndex = -1;
+
+    [ObservableProperty]
+    private int _playlistRemainingSeconds;
+
+    [ObservableProperty]
+    private bool _isPlaylistAutoAdvanceEnabled = true;
+
+    [ObservableProperty]
+    private bool _isPlaylistRunning;
+
+    public PlaylistItem? CurrentPlaylistItem => _playlistController.GetCurrent(PlaylistItems, PlaylistCurrentIndex);
+    public PlaylistItem? NextPlaylistItem => _playlistController.GetNext(PlaylistItems, PlaylistCurrentIndex);
+    public string PlaylistStatusText => PlaylistItems.Count == 0
+        ? "Playlist is empty."
+        : PlaylistCurrentIndex < 0
+            ? $"Playlist ready ({PlaylistItems.Count} items)."
+            : $"Playing {PlaylistCurrentIndex + 1}/{PlaylistItems.Count}: {CurrentPlaylistItem?.PresetName}";
+
+    public string PlaylistCountdownText => IsPlaylistRunning && IsPlaylistAutoAdvanceEnabled && CurrentPlaylistItem != null
+        ? $"Next in {PlaylistRemainingSeconds}s"
+        : IsPlaylistAutoAdvanceEnabled
+            ? "Auto-Advance armed"
+            : "Auto-Advance paused";
+
     public ObservableCollection<Models.TextBlock> EditableTextBlocks { get; } = [];
     public ObservableCollection<OverlayItem> EditableOverlays { get; } = [];
     public ObservableCollection<KeyerSlot> UskKeyers { get; } = [];
@@ -650,6 +683,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private DispatcherTimer? _autoClearTimer;
     private bool _autoClearEnabled;
+    private DispatcherTimer? _playlistTimer;
 
     private DispatcherTimer? _transitionTimer;
     private Preset? _transitionFromPreset;
@@ -702,6 +736,10 @@ public partial class MainWindowViewModel : ObservableObject
         _autoClearTimer.Interval = TimeSpan.FromSeconds(1);
         _autoClearTimer.Tick += AutoClearTimer_Tick;
 
+        _playlistTimer = new DispatcherTimer();
+        _playlistTimer.Interval = TimeSpan.FromSeconds(1);
+        _playlistTimer.Tick += PlaylistTimer_Tick;
+
         if (_externalControlCoordinator != null)
         {
             _externalControlCoordinator.ShowPresetHandler = preset => ShowPresetAsync(preset);
@@ -712,6 +750,8 @@ public partial class MainWindowViewModel : ObservableObject
             _externalControlCoordinator.GetRemoteControlSettingsHandler = () => _settingsService.Settings.RemoteControl;
             _externalControlCoordinator.SetKeyerStateHandler = ApplyRemoteKeyerStateAsync;
             _externalControlCoordinator.RunKeyerAutoHandler = RunKeyerAutoByDestinationAsync;
+            _externalControlCoordinator.NextCueHandler = TriggerNextCueAsync;
+            _externalControlCoordinator.GetPlaylistSnapshotHandler = CreatePlaylistSnapshot;
         }
 
         if (_hotkeyService != null)
@@ -728,8 +768,10 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         RefreshFilteredPresets();
+        PlaylistItems.CollectionChanged += (_, _) => RefreshPlaylistState();
 
         RefreshNdiOutputStatus("初期状態");
+        RefreshPlaylistState();
     }
 
     partial void OnShowDebugLogsChanged(bool value) => RefreshFilteredLogs();
@@ -739,6 +781,11 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnShowFatalLogsChanged(bool value) => RefreshFilteredLogs();
     partial void OnLogKeywordChanged(string value) => RefreshFilteredLogs();
     partial void OnPresetSearchKeywordChanged(string value) => RefreshFilteredPresets();
+    partial void OnPlaylistCurrentIndexChanged(int value) => RefreshPlaylistState();
+    partial void OnPlaylistRemainingSecondsChanged(int value) => OnPropertyChanged(nameof(PlaylistCountdownText));
+    partial void OnIsPlaylistAutoAdvanceEnabledChanged(bool value) => RefreshPlaylistState();
+    partial void OnIsPlaylistRunningChanged(bool value) => RefreshPlaylistState();
+
 
     [RelayCommand]
     private void ClearLogKeyword()
@@ -983,6 +1030,211 @@ public partial class MainWindowViewModel : ObservableObject
         await ShowPresetAsync(preset);
         Status = $"NumPad{number}: {preset.Name}";
     }
+
+    [RelayCommand]
+    private void AddSelectedPresetToPlaylist()
+    {
+        if (SelectedPreset == null)
+        {
+            Status = "No preset selected to add to playlist.";
+            return;
+        }
+
+        PlaylistItems.Add(new PlaylistItem(SelectedPreset));
+        SelectedPlaylistItem = PlaylistItems[^1];
+        Status = $"Playlist item added: {SelectedPreset.Name}";
+    }
+
+    [RelayCommand]
+    private void RemovePlaylistItem(PlaylistItem? item)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        var index = PlaylistItems.IndexOf(item);
+        PlaylistItems.Remove(item);
+        if (PlaylistCurrentIndex == index)
+        {
+            PlaylistCurrentIndex = -1;
+            IsPlaylistRunning = false;
+            _playlistTimer?.Stop();
+        }
+        else if (index >= 0 && index < PlaylistCurrentIndex)
+        {
+            PlaylistCurrentIndex--;
+        }
+
+        SelectedPlaylistItem = PlaylistItems.ElementAtOrDefault(Math.Clamp(index - 1, 0, Math.Max(0, PlaylistItems.Count - 1)));
+        Status = "Playlist item removed.";
+        RefreshPlaylistState();
+    }
+
+    [RelayCommand]
+    private async Task CuePlaylistItemAsync(PlaylistItem? item)
+    {
+        if (item == null)
+        {
+            Status = "Cue ignored: no playlist item selected.";
+            return;
+        }
+
+        var index = PlaylistItems.IndexOf(item);
+        if (index < 0)
+        {
+            return;
+        }
+
+        await ActivatePlaylistItemAsync(index, item, "Cue");
+    }
+
+    [RelayCommand]
+    private Task NextCueAsync() => TriggerNextCueAsync();
+
+    public Task TriggerNextCueAsync()
+    {
+        var next = _playlistController.Advance(PlaylistItems, PlaylistCurrentIndex);
+        if (next == null)
+        {
+            Status = PlaylistItems.Count == 0
+                ? "Next Cue ignored: playlist is empty."
+                : "Next Cue ignored: end of playlist reached.";
+            return Task.CompletedTask;
+        }
+
+        var index = PlaylistItems.IndexOf(next);
+        return ActivatePlaylistItemAsync(index, next, PlaylistCurrentIndex < 0 ? "Start Playlist" : "Next Cue");
+    }
+
+    public Task MovePlaylistItemAsync(string presetId, int targetIndex)
+    {
+        var currentIndex = PlaylistItems.ToList().FindIndex(item => item.PresetId == presetId);
+        if (currentIndex < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var clampedIndex = Math.Clamp(targetIndex, 0, PlaylistItems.Count - 1);
+        if (currentIndex == clampedIndex)
+        {
+            return Task.CompletedTask;
+        }
+
+        PlaylistItems.Move(currentIndex, clampedIndex);
+
+        if (PlaylistCurrentIndex == currentIndex)
+        {
+            PlaylistCurrentIndex = clampedIndex;
+        }
+        else if (currentIndex < PlaylistCurrentIndex && clampedIndex >= PlaylistCurrentIndex)
+        {
+            PlaylistCurrentIndex--;
+        }
+        else if (currentIndex > PlaylistCurrentIndex && clampedIndex <= PlaylistCurrentIndex)
+        {
+            PlaylistCurrentIndex++;
+        }
+
+        SelectedPlaylistItem = PlaylistItems.ElementAtOrDefault(clampedIndex);
+        Status = "Playlist order updated.";
+        RefreshPlaylistState();
+        return Task.CompletedTask;
+    }
+
+    private async Task ActivatePlaylistItemAsync(int index, PlaylistItem item, string actionName)
+    {
+        PlaylistCurrentIndex = index;
+        SelectedPlaylistItem = item;
+        CurrentPreviewPreset = item.Preset;
+        await ApplyProgramPresetAsync(item.Preset, immediate: false, actionName: actionName);
+        IsPlaylistRunning = true;
+        PlaylistRemainingSeconds = Math.Max(0, item.DisplayDurationSeconds);
+        RefreshPlaylistState();
+    }
+
+    private void RefreshPlaylistState()
+    {
+        for (var i = 0; i < PlaylistItems.Count; i++)
+        {
+            PlaylistItems[i].IsCurrent = i == PlaylistCurrentIndex;
+            PlaylistItems[i].IsNext = i == PlaylistCurrentIndex + 1;
+        }
+
+        if (SelectedPlaylistItem != null && !PlaylistItems.Contains(SelectedPlaylistItem))
+        {
+            SelectedPlaylistItem = PlaylistItems.ElementAtOrDefault(Math.Clamp(PlaylistCurrentIndex, 0, Math.Max(0, PlaylistItems.Count - 1)));
+        }
+
+        if (!IsPlaylistRunning || !IsPlaylistAutoAdvanceEnabled || CurrentPlaylistItem == null || PlaylistRemainingSeconds <= 0)
+        {
+            _playlistTimer?.Stop();
+        }
+        else if (!(_playlistTimer?.IsEnabled ?? false))
+        {
+            _playlistTimer?.Start();
+        }
+
+        OnPropertyChanged(nameof(CurrentPlaylistItem));
+        OnPropertyChanged(nameof(NextPlaylistItem));
+        OnPropertyChanged(nameof(PlaylistStatusText));
+        OnPropertyChanged(nameof(PlaylistCountdownText));
+    }
+
+    private void PlaylistTimer_Tick(object? sender, EventArgs e)
+    {
+        _ = HandlePlaylistTickAsync();
+    }
+
+    public async Task HandlePlaylistTickAsync()
+    {
+        if (!IsPlaylistRunning || !IsPlaylistAutoAdvanceEnabled || CurrentPlaylistItem == null)
+        {
+            return;
+        }
+
+        if (PlaylistRemainingSeconds > 0)
+        {
+            PlaylistRemainingSeconds--;
+        }
+
+        if (PlaylistRemainingSeconds > 0)
+        {
+            RefreshPlaylistState();
+            return;
+        }
+
+        var next = _playlistController.GetNext(PlaylistItems, PlaylistCurrentIndex);
+        if (next == null)
+        {
+            IsPlaylistRunning = false;
+            Status = "Playlist completed.";
+            RefreshPlaylistState();
+            return;
+        }
+
+        await ActivatePlaylistItemAsync(PlaylistItems.IndexOf(next), next, "Auto-Advance");
+    }
+
+    private PlaylistStatusSnapshot CreatePlaylistSnapshot()
+        => new()
+        {
+            CurrentIndex = PlaylistCurrentIndex,
+            IsRunning = IsPlaylistRunning,
+            AutoAdvanceEnabled = IsPlaylistAutoAdvanceEnabled,
+            RemainingSeconds = PlaylistRemainingSeconds,
+            CurrentPresetId = CurrentPlaylistItem?.PresetId,
+            CurrentPresetName = CurrentPlaylistItem?.PresetName ?? string.Empty,
+            NextPresetId = NextPlaylistItem?.PresetId,
+            NextPresetName = NextPlaylistItem?.PresetName ?? string.Empty,
+            Items = PlaylistItems.Select((item, index) => new PlaylistStatusItem
+            {
+                Index = index,
+                PresetId = item.PresetId,
+                PresetName = item.PresetName,
+                DisplayDurationSeconds = item.DisplayDurationSeconds
+            }).ToList()
+        };
 
     [RelayCommand]
     public void RenderPreview()

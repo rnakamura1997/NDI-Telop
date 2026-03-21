@@ -156,6 +156,9 @@ public class ExternalControlServicesTests
             Assert.Equal(HttpStatusCode.OK, clearResponse.StatusCode);
             Assert.True(cleared);
 
+            var nextCueResponse = await client.PostAsync("/api/playlist/next-cue", null);
+            Assert.Equal(HttpStatusCode.NotFound, nextCueResponse.StatusCode);
+
             var takeResponse = await client.PostAsJsonAsync("/take", new TakeRequest { PresetId = "preset-api" });
             Assert.Equal(HttpStatusCode.OK, takeResponse.StatusCode);
             Assert.Equal("preset-api", takenId);
@@ -172,6 +175,65 @@ public class ExternalControlServicesTests
             });
             Assert.Equal(HttpStatusCode.OK, tallyResponse.StatusCode);
             Assert.Equal(KeyerDestination.Usk2, keyerAutoDestination);
+        }
+        finally
+        {
+            await webApiService.StopAsync();
+        }
+    }
+
+
+    [Fact]
+    public async Task WebApiService_ShouldExposePlaylistStatusAndNextCue()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+
+        var coordinator = new ExternalControlCoordinator(presetService);
+        var nextCueTriggered = false;
+        coordinator.NextCueHandler = () =>
+        {
+            nextCueTriggered = true;
+            return Task.CompletedTask;
+        };
+        coordinator.GetPlaylistSnapshotHandler = () => new PlaylistStatusSnapshot
+        {
+            CurrentIndex = 1,
+            IsRunning = true,
+            AutoAdvanceEnabled = true,
+            RemainingSeconds = 4,
+            CurrentPresetId = "preset-1",
+            CurrentPresetName = "Current",
+            NextPresetId = "preset-2",
+            NextPresetName = "Next",
+            Items = new List<PlaylistStatusItem>
+            {
+                new() { Index = 0, PresetId = "preset-0", PresetName = "Warmup", DisplayDurationSeconds = 3 },
+                new() { Index = 1, PresetId = "preset-1", PresetName = "Current", DisplayDurationSeconds = 4 }
+            }
+        };
+
+        var port = GetFreeTcpPort();
+        var webApiService = new WebApiService(coordinator)
+        {
+            Host = "127.0.0.1",
+            Port = port
+        };
+
+        await webApiService.StartAsync();
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+
+            var statusResponse = await client.GetFromJsonAsync<PlaylistStatusSnapshot>("/api/playlist/status");
+            Assert.NotNull(statusResponse);
+            Assert.Equal("Current", statusResponse!.CurrentPresetName);
+            Assert.Equal("Next", statusResponse.NextPresetName);
+            Assert.Equal(2, statusResponse.Items.Count);
+
+            var nextCueResponse = await client.PostAsync("/api/playlist/next-cue", null);
+            Assert.Equal(HttpStatusCode.OK, nextCueResponse.StatusCode);
+            Assert.True(nextCueTriggered);
         }
         finally
         {

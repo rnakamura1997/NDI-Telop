@@ -18,7 +18,9 @@ public partial class MainWindow : Window
 {
     private const string PresetDragDataFormat = "application/x-nditelop-preset-id";
     private const string AssetDragDataFormat = "application/x-nditelop-asset-path";
+    private const string PlaylistDragDataFormat = "application/x-nditelop-playlist-preset-id";
     private Preset? _dragSourcePreset;
+    private PlaylistItem? _dragSourcePlaylistItem;
 
     public MainWindow()
     {
@@ -37,6 +39,14 @@ public partial class MainWindow : Window
         if (assetListBox != null)
         {
             assetListBox.AddHandler(InputElement.PointerPressedEvent, AssetListBox_OnPointerPressed, RoutingStrategies.Bubble);
+        }
+        var playlistListBox = this.FindControl<ListBox>("PlaylistListBox");
+        if (playlistListBox != null)
+        {
+            DragDrop.SetAllowDrop(playlistListBox, true);
+            playlistListBox.AddHandler(InputElement.PointerPressedEvent, PlaylistListBox_OnPointerPressed, RoutingStrategies.Bubble);
+            playlistListBox.AddHandler(DragDrop.DragOverEvent, PlaylistListBox_OnDragOver, RoutingStrategies.Bubble);
+            playlistListBox.AddHandler(DragDrop.DropEvent, PlaylistListBox_OnDrop, RoutingStrategies.Bubble);
         }
         // DataContextが設定された後にLoadPresetsAsyncを呼び出す
         this.Opened += (sender, e) =>
@@ -121,6 +131,22 @@ public partial class MainWindow : Window
         await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Copy);
     }
 
+    private async void PlaylistListBox_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var item = ExtractPlaylistItemFromEventSource(e.Source);
+        if (item == null)
+        {
+            return;
+        }
+
+        _dragSourcePlaylistItem = item;
+        var dataObject = new DataObject();
+        dataObject.Set(PlaylistDragDataFormat, item.PresetId);
+        dataObject.Set(DataFormats.Text, item.PresetId);
+
+        await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Move);
+    }
+
     private void PresetListBox_OnDragOver(object? sender, DragEventArgs e)
     {
         var targetPreset = ExtractPresetFromEventSource(e.Source);
@@ -192,6 +218,66 @@ public partial class MainWindow : Window
         return null;
     }
 
+
+    private void PlaylistListBox_OnDragOver(object? sender, DragEventArgs e)
+    {
+        var targetItem = ExtractPlaylistItemFromEventSource(e.Source);
+        if (_dragSourcePlaylistItem == null || targetItem == null || !e.Data.Contains(PlaylistDragDataFormat))
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private async void PlaylistListBox_OnDrop(object? sender, DragEventArgs e)
+    {
+        try
+        {
+            if (DataContext is not MainWindowViewModel viewModel)
+            {
+                return;
+            }
+
+            var targetItem = ExtractPlaylistItemFromEventSource(e.Source);
+            if (_dragSourcePlaylistItem == null || targetItem == null || _dragSourcePlaylistItem == targetItem)
+            {
+                return;
+            }
+
+            var targetIndex = viewModel.PlaylistItems.IndexOf(targetItem);
+            if (targetIndex < 0)
+            {
+                return;
+            }
+
+            await viewModel.MovePlaylistItemAsync(_dragSourcePlaylistItem.PresetId, targetIndex);
+            viewModel.SelectedPlaylistItem = _dragSourcePlaylistItem;
+            e.Handled = true;
+        }
+        finally
+        {
+            _dragSourcePlaylistItem = null;
+        }
+    }
+
+    private static PlaylistItem? ExtractPlaylistItemFromEventSource(object? source)
+    {
+        var current = source as Control;
+        while (current != null)
+        {
+            if (current.DataContext is PlaylistItem item)
+            {
+                return item;
+            }
+
+            current = current.Parent as Control;
+        }
+
+        return null;
+    }
 
     private static AssetItem? ExtractAssetFromEventSource(object? source)
     {
