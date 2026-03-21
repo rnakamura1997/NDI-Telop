@@ -16,4 +16,5 @@ public partial class TextBlock : ObservableObject
     public ObservableCollection<TextLine> TextLines { get; set; } = [];
     public TextStyleSettings TextStyle { get; set; } = new();
     public TextLayoutSettings TextLayout { get; set; } = new();
+    public DataSourceSettings DataSource { get; set; } = new();
 }

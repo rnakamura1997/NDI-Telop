@@ -10,10 +10,12 @@ public class RenderService : IRenderService
 {
     private readonly AssetService _assetService = new();
     private readonly ISettingsService? _settingsService;
+    private readonly ExternalDataSourceService _externalDataSourceService;
 
-    public RenderService(ISettingsService? settingsService = null)
+    public RenderService(ISettingsService? settingsService = null, ExternalDataSourceService? externalDataSourceService = null)
     {
         _settingsService = settingsService;
+        _externalDataSourceService = externalDataSourceService ?? new ExternalDataSourceService();
     }
 
     public SKBitmap Render(Preset preset, int width, int height)
@@ -165,7 +167,7 @@ public class RenderService : IRenderService
 
             using var layerPaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(opacity * 255)) };
             canvas.SaveLayer(layerPaint);
-            DrawTextBlocks(canvas, keyer.TextBlocks, width, height);
+            DrawTextBlocks(canvas, keyer.TextBlocks, width, height, _externalDataSourceService);
             DrawOverlays(canvas, keyer.Overlays, width, height);
             canvas.Restore();
             return;
@@ -183,7 +185,7 @@ public class RenderService : IRenderService
             keyerCanvas.Clear(SKColors.Transparent);
             using var layerPaint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(opacity * 255)) };
             keyerCanvas.SaveLayer(layerPaint);
-            DrawTextBlocks(keyerCanvas, keyer.TextBlocks, width, height);
+            DrawTextBlocks(keyerCanvas, keyer.TextBlocks, width, height, _externalDataSourceService);
             DrawOverlays(keyerCanvas, keyer.Overlays, width, height);
             keyerCanvas.Restore();
         }
@@ -337,15 +339,16 @@ public class RenderService : IRenderService
         return (Math.Max(1, sourceWidth), Math.Max(1, sourceHeight));
     }
 
-    private static void DrawTextBlocks(SKCanvas canvas, IReadOnlyList<TextBlock> blocks, int width, int height)
+    private static void DrawTextBlocks(SKCanvas canvas, IReadOnlyList<TextBlock> blocks, int width, int height, ExternalDataSourceService externalDataSourceService)
     {
         foreach (var block in blocks)
         {
-            DrawTextLines(canvas, block.TextLines, block.TextStyle, block.TextLayout, width, height);
+            var fieldValues = block.DataSource?.AsDictionary();
+            DrawTextLines(canvas, block.TextLines, block.TextStyle, block.TextLayout, width, height, fieldValues, externalDataSourceService);
         }
     }
 
-    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, TextLayoutSettings? layout, int width, int height)
+    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, TextLayoutSettings? layout, int width, int height, IReadOnlyDictionary<string, string>? fieldValues, ExternalDataSourceService externalDataSourceService)
     {
         if (lines.Count == 0)
         {
@@ -361,9 +364,10 @@ public class RenderService : IRenderService
             var fontSize = GetEffectiveFontSize(line, style);
             using var typeface = SKTypeface.FromFamilyName(fontFamily) ?? SKTypeface.Default;
             using var font = new SKFont(typeface, fontSize);
-            font.MeasureText(line.Text, out var textBounds);
+            var renderedText = externalDataSourceService.ApplyTemplate(line.Text, fieldValues);
+            font.MeasureText(renderedText, out var textBounds);
 
-            measuredLines.Add(new MeasuredTextLine(line, fontFamily, fontSize, textBounds));
+            measuredLines.Add(new MeasuredTextLine(line, renderedText, fontFamily, fontSize, textBounds));
         }
 
         var totalTextHeight = measuredLines.Sum(line => line.Bounds.Height) + lineSpacing * Math.Max(0, measuredLines.Count - 1);
@@ -394,7 +398,7 @@ public class RenderService : IRenderService
                     IsAntialias = true,
                     MaskFilter = shadowBlur > 0f ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, shadowBlur) : null
                 };
-                canvas.DrawText(measuredLine.Line.Text, x + shadowOffsetX, textBaseline + shadowOffsetY, font, shadowPaint);
+                canvas.DrawText(measuredLine.ResolvedText, x + shadowOffsetX, textBaseline + shadowOffsetY, font, shadowPaint);
             }
 
             if (outlineThickness > 0f)
@@ -407,7 +411,7 @@ public class RenderService : IRenderService
                     StrokeWidth = outlineThickness,
                     StrokeJoin = SKStrokeJoin.Round
                 };
-                canvas.DrawText(measuredLine.Line.Text, x, textBaseline, font, outlinePaint);
+                canvas.DrawText(measuredLine.ResolvedText, x, textBaseline, font, outlinePaint);
             }
 
             using var fillPaint = new SKPaint
@@ -416,7 +420,7 @@ public class RenderService : IRenderService
                 IsAntialias = true,
                 Style = SKPaintStyle.Fill
             };
-            canvas.DrawText(measuredLine.Line.Text, x, textBaseline, font, fillPaint);
+            canvas.DrawText(measuredLine.ResolvedText, x, textBaseline, font, fillPaint);
             currentTop += measuredLine.Bounds.Height + lineSpacing;
         }
     }
@@ -437,7 +441,7 @@ public class RenderService : IRenderService
             _ => (width - textBounds.Width) / 2f - textBounds.Left
         };
 
-    private readonly record struct MeasuredTextLine(TextLine Line, string FontFamily, float FontSize, SKRect Bounds);
+    private readonly record struct MeasuredTextLine(TextLine Line, string ResolvedText, string FontFamily, float FontSize, SKRect Bounds);
 
     private static string GetEffectiveFontFamily(TextLine line, TextStyleSettings? style)
         => !string.IsNullOrWhiteSpace(style?.FontFamily) ? style.FontFamily : line.FontFamily;

@@ -137,6 +137,29 @@
         <TextBlock Text="Text Lines" FontWeight="SemiBold" VerticalAlignment="Center" />
         <Button Content="Add Line" Command="{Binding AddTextLineCommand}" />
       </StackPanel>
+      <TextBlock Text="Data Source" FontWeight="SemiBold" Margin="0,4,0,0" />
+      <Border BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="8">
+        <StackPanel Spacing="6">
+          <CheckBox Content="Enable external data source" IsChecked="{Binding SelectedTextBlock.DataSource.IsEnabled, Mode=TwoWay}" />
+          <TextBlock Text="File path or URL" />
+          <TextBox Text="{Binding SelectedTextBlock.DataSource.Source, Mode=TwoWay}" Watermark="/path/to/data.json or https://example.com/data.csv" />
+          <TextBlock Text="Refresh interval (seconds)" />
+          <TextBox Text="{Binding SelectedTextBlock.DataSource.RefreshIntervalSeconds, Mode=TwoWay}" Watermark="5" />
+          <TextBlock Text="Template variables example: {{score_a}}, {{team.name}}" FontSize="11" Foreground="#AAAAAA" />
+          <TextBlock Text="{Binding SelectedTextBlock.DataSource.LastStatus}" FontSize="11" Foreground="#AAAAAA" />
+          <ItemsControl ItemsSource="{Binding SelectedTextBlock.DataSource.Fields}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <TextBlock Grid.Column="0" Text="{Binding Key}" FontSize="11" />
+                  <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="11" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
       <ListBox ItemsSource="{Binding SelectedTextBlock.TextLines}" MinHeight="180">
         <ListBox.ItemTemplate>
           <DataTemplate>
