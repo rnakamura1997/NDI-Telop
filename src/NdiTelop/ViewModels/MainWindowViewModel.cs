@@ -43,6 +43,8 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly ExternalControlCoordinator? _externalControlCoordinator;
     private AssetService _assetService;
     private readonly HotkeyService? _hotkeyService;
+    private readonly ExternalDataSourceService _externalDataSourceService;
+    private readonly Dictionary<string, CancellationTokenSource> _dataRefreshTokens = [];
 
     [ObservableProperty]
     private string _status = "Ready";
@@ -69,6 +71,10 @@ public partial class MainWindowViewModel : ObservableObject
         AttachTextBlockListeners(value);
         RefreshEditorCollections(value);
         SelectedTextBlock = EditableTextBlocks.FirstOrDefault();
+        foreach (var block in EditableTextBlocks)
+        {
+            EnsureDataSourceRefreshState(block);
+        }
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -316,6 +322,8 @@ public partial class MainWindowViewModel : ObservableObject
                     block.TextLines.CollectionChanged -= TextLines_CollectionChanged;
                     block.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
                     block.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+                    block.DataSource.PropertyChanged -= DataSource_PropertyChanged;
+                    StopDataRefreshLoop(block.Id);
                     foreach (var line in block.TextLines)
                     {
                         line.PropertyChanged -= TextLine_PropertyChanged;
@@ -344,6 +352,8 @@ public partial class MainWindowViewModel : ObservableObject
                 block.TextLines.CollectionChanged += TextLines_CollectionChanged;
                 block.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
                 block.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
+                block.DataSource.PropertyChanged += DataSource_PropertyChanged;
+                EnsureDataSourceRefreshState(block);
                 foreach (var line in block.TextLines)
                 {
                     line.PropertyChanged += TextLine_PropertyChanged;
@@ -362,6 +372,8 @@ public partial class MainWindowViewModel : ObservableObject
                 removed.TextLines.CollectionChanged -= TextLines_CollectionChanged;
                 removed.TextStyle.PropertyChanged -= TextStyle_PropertyChanged;
                 removed.TextLayout.PropertyChanged -= TextLayout_PropertyChanged;
+                removed.DataSource.PropertyChanged -= DataSource_PropertyChanged;
+                StopDataRefreshLoop(removed.Id);
                 foreach (var line in removed.TextLines)
                 {
                     line.PropertyChanged -= TextLine_PropertyChanged;
@@ -377,6 +389,8 @@ public partial class MainWindowViewModel : ObservableObject
                 added.TextLines.CollectionChanged += TextLines_CollectionChanged;
                 added.TextStyle.PropertyChanged += TextStyle_PropertyChanged;
                 added.TextLayout.PropertyChanged += TextLayout_PropertyChanged;
+                added.DataSource.PropertyChanged += DataSource_PropertyChanged;
+                EnsureDataSourceRefreshState(added);
                 foreach (var line in added.TextLines)
                 {
                     line.PropertyChanged += TextLine_PropertyChanged;
@@ -390,6 +404,11 @@ public partial class MainWindowViewModel : ObservableObject
             SelectedTextBlock = EditableTextBlocks.FirstOrDefault();
         }
 
+        foreach (var block in EditableTextBlocks)
+        {
+            EnsureDataSourceRefreshState(block);
+        }
+
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
@@ -401,6 +420,125 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private void DataSource_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not DataSourceSettings settings)
+        {
+            return;
+        }
+
+        var block = EditableTextBlocks.FirstOrDefault(candidate => ReferenceEquals(candidate.DataSource, settings));
+        if (block == null)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(DataSourceSettings.IsEnabled) or nameof(DataSourceSettings.Source) or nameof(DataSourceSettings.RefreshIntervalSeconds))
+        {
+            EnsureDataSourceRefreshState(block);
+        }
+
+        OnPropertyChanged(nameof(SelectedPreset));
+    }
+
+    private void EnsureDataSourceRefreshState(Models.TextBlock block)
+    {
+        if (block.DataSource == null)
+        {
+            block.DataSource = new DataSourceSettings();
+        }
+
+        if (!block.DataSource.IsEnabled || string.IsNullOrWhiteSpace(block.DataSource.Source))
+        {
+            StopDataRefreshLoop(block.Id);
+            if (block.DataSource.Fields.Count == 0)
+            {
+                block.DataSource.LastStatus = block.DataSource.IsEnabled ? "Waiting for source" : "Disabled";
+            }
+            return;
+        }
+
+        StartDataRefreshLoop(block);
+    }
+
+    private void StartDataRefreshLoop(Models.TextBlock block)
+    {
+        StopDataRefreshLoop(block.Id);
+        var cts = new CancellationTokenSource();
+        _dataRefreshTokens[block.Id] = cts;
+        _ = RunDataRefreshLoopAsync(block, cts.Token);
+    }
+
+    private void StopDataRefreshLoop(string blockId)
+    {
+        if (_dataRefreshTokens.Remove(blockId, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+    }
+
+    private async Task RunDataRefreshLoopAsync(Models.TextBlock block, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await RefreshBlockDataSourceAsync(block, cancellationToken);
+
+            var delay = TimeSpan.FromSeconds(Math.Max(1, block.DataSource.RefreshIntervalSeconds));
+            try
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task RefreshBlockDataSourceAsync(Models.TextBlock block, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var values = await _externalDataSourceService.LoadAsync(block.DataSource.Source, cancellationToken);
+            await RunOnUiThreadAsync(() =>
+            {
+                block.DataSource.Fields.Clear();
+                foreach (var pair in values.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    block.DataSource.Fields.Add(new DataSourceFieldValue { Key = pair.Key, Value = pair.Value });
+                }
+
+                block.DataSource.LastUpdatedUtc = DateTimeOffset.UtcNow;
+                block.DataSource.LastStatus = $"Updated {block.DataSource.LastUpdatedUtc:HH:mm:ss} UTC";
+                OnPropertyChanged(nameof(SelectedPreset));
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            await RunOnUiThreadAsync(() =>
+            {
+                block.DataSource.LastStatus = $"Error: {ex.Message}";
+                OnPropertyChanged(nameof(SelectedPreset));
+            });
+        }
+    }
+
+
+    private static Task RunOnUiThreadAsync(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        return Dispatcher.UIThread.InvokeAsync(action).GetTask();
     }
 
     private void KeyerSlot_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -525,7 +663,7 @@ public partial class MainWindowViewModel : ObservableObject
 
 
 
-    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalControlCoordinator? externalControlCoordinator = null, AssetService? assetService = null, HotkeyService? hotkeyService = null)
+    public MainWindowViewModel(RenderService renderService, IPresetService presetService, INdiService ndiService, ISettingsService settingsService, ExternalDataSourceService? externalDataSourceService = null, ExternalControlCoordinator? externalControlCoordinator = null, AssetService? assetService = null, HotkeyService? hotkeyService = null)
     {
         _renderService = renderService;
         _presetService = presetService;
@@ -535,6 +673,7 @@ public partial class MainWindowViewModel : ObservableObject
         _assetService = assetService ?? new AssetService();
         _assetService.AssetsChanged += AssetService_AssetsChanged;
         _hotkeyService = hotkeyService;
+        _externalDataSourceService = externalDataSourceService ?? new ExternalDataSourceService();
 
         _ndiSendTimer = new DispatcherTimer();
         _ndiSendTimer.Interval = TimeSpan.FromMilliseconds(1000.0 / (NdiConfig.FrameRateN / NdiConfig.FrameRateD));
@@ -551,6 +690,10 @@ public partial class MainWindowViewModel : ObservableObject
         AttachTextBlockListeners(SelectedPreset);
         RefreshEditorCollections(SelectedPreset);
         SelectedTextBlock = EditableTextBlocks.FirstOrDefault();
+        foreach (var block in EditableTextBlocks)
+        {
+            EnsureDataSourceRefreshState(block);
+        }
 
         // コマンドの初期化
         ShowPresetCommand = new AsyncRelayCommand<Preset>(ShowPresetAsync);
@@ -1166,6 +1309,7 @@ public partial class MainWindowViewModel : ObservableObject
             Name = $"Text Block {blockIndex}",
             TextStyle = new TextStyleSettings { FontFamily = fontFamily, FontSize = 48, Color = "#FFFFFF" },
             TextLayout = new TextLayoutSettings(),
+            DataSource = new DataSourceSettings { RefreshIntervalSeconds = 5 },
             TextLines = [new TextLine { Text = $"Line {blockIndex}", FontFamily = fontFamily, FontSize = 48, Color = "#FFFFFF" }]
         };
 
@@ -1191,6 +1335,7 @@ public partial class MainWindowViewModel : ObservableObject
         var index = EditableTextBlocks.IndexOf(block);
         var keyer = SelectedPreset.GetKeyer(block.DestinationKeyer);
         keyer.TextBlocks.Remove(block);
+        StopDataRefreshLoop(block.Id);
         RefreshEditorCollections(SelectedPreset);
         SelectedTextBlock = EditableTextBlocks.ElementAtOrDefault(Math.Max(0, index - 1))
             ?? EditableTextBlocks.FirstOrDefault();

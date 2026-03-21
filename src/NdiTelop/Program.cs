@@ -53,6 +53,7 @@ public static class Program
         services.AddSingleton<SettingsWindowViewModel>();
         services.AddSingleton<PresetEditorViewModel>();
 
+        services.AddSingleton<ExternalDataSourceService>();
         services.AddSingleton<INdiService, NdiService>();
         services.AddSingleton<IRenderService, RenderService>();
         services.AddSingleton<PresetService>(provider =>

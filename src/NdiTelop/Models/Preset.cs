@@ -66,7 +66,8 @@ public class Preset
                 DestinationKeyer = KeyerDestination.Usk1,
                 TextLines = TextLines.Count > 0 ? new ObservableCollection<TextLine>(TextLines) : [],
                 TextStyle = TextStyle ?? new TextStyleSettings(),
-                TextLayout = TextLayout ?? new TextLayoutSettings()
+                TextLayout = TextLayout ?? new TextLayoutSettings(),
+                DataSource = new DataSourceSettings()
             });
         }
 
@@ -77,6 +78,7 @@ public class Preset
             block.TextLines ??= [];
             block.TextStyle ??= new TextStyleSettings();
             block.TextLayout ??= new TextLayoutSettings();
+            block.DataSource ??= new DataSourceSettings();
             index++;
         }
 
