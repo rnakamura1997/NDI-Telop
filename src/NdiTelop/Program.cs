@@ -93,23 +93,33 @@ public static class Program
         try
         {
             var oscService = services.GetRequiredService<IOscService>();
-            oscService.ReceivePort = settingsService.Settings.OscPort;
+            oscService.ReceivePort = settingsService.Settings.RemoteControl.OscPort;
+            if (oscService is OscService concreteOsc)
+            {
+                concreteOsc.FeedbackHost = settingsService.Settings.RemoteControl.OscFeedbackHost;
+                concreteOsc.FeedbackPort = settingsService.Settings.RemoteControl.OscFeedbackPort;
+            }
             oscService.StartAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "OSC initialization failed (port: {Port}).", settingsService.Settings.OscPort);
+            Log.Error(ex, "OSC initialization failed (port: {Port}).", settingsService.Settings.RemoteControl.OscPort);
         }
 
         try
         {
             var webApiService = services.GetRequiredService<IWebApiService>();
-            webApiService.Port = settingsService.Settings.WebApiPort;
+            if (webApiService is WebApiService concreteWebApi)
+            {
+                concreteWebApi.Host = settingsService.Settings.RemoteControl.WebApiHost;
+            }
+
+            webApiService.Port = settingsService.Settings.RemoteControl.WebApiPort;
             webApiService.StartAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Web API initialization failed (port: {Port}).", settingsService.Settings.WebApiPort);
+            Log.Error(ex, "Web API initialization failed (port: {Port}).", settingsService.Settings.RemoteControl.WebApiPort);
         }
 
 

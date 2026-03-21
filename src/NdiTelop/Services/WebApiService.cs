@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using NdiTelop.Interfaces;
+using NdiTelop.Models;
 using NdiTelop.Services.WebUi;
 
 namespace NdiTelop.Services;
@@ -24,6 +25,7 @@ public class WebApiService : IWebApiService
     }
 
     public int Port { get; set; } = 5000;
+    public string Host { get; set; } = "*";
 
     public Task StartAsync()
     {
@@ -33,7 +35,7 @@ public class WebApiService : IWebApiService
         }
 
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://*:{Port}/");
+        _listener.Prefixes.Add($"http://{Host}:{Port}/");
         _listener.Start();
 
         _cts = new CancellationTokenSource();
@@ -145,6 +147,12 @@ public class WebApiService : IWebApiService
                 return;
             }
 
+            if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/api/remote-control/settings", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, _coordinator.GetRemoteControlSettings());
+                return;
+            }
+
             if (request.HttpMethod == HttpMethod.Post.Method && path.Equals("/api/program/clear", StringComparison.OrdinalIgnoreCase))
             {
                 var cleared = await _coordinator.ClearProgramAsync();
@@ -155,6 +163,26 @@ public class WebApiService : IWebApiService
                 }
 
                 await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "Program output cleared." });
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Post.Method && (path.Equals("/api/take", StringComparison.OrdinalIgnoreCase) || path.Equals("/take", StringComparison.OrdinalIgnoreCase)))
+            {
+                var payload = await ReadJsonAsync<TakeRequest>(request);
+                if (payload == null || string.IsNullOrWhiteSpace(payload.PresetId))
+                {
+                    await WriteJsonAsync(context.Response, HttpStatusCode.BadRequest, new { message = "PresetId is required." });
+                    return;
+                }
+
+                var taken = await _coordinator.TakePresetByIdAsync(payload.PresetId);
+                if (!taken)
+                {
+                    await WriteJsonAsync(context.Response, HttpStatusCode.NotFound, new { message = "Preset not found or take handler unavailable." });
+                    return;
+                }
+
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "Preset taken.", payload.PresetId });
                 return;
             }
 
@@ -175,6 +203,80 @@ public class WebApiService : IWebApiService
                 }
 
                 await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "Preset activated.", id });
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Post.Method && path.StartsWith("/api/keyers/", StringComparison.OrdinalIgnoreCase))
+            {
+                var destinationToken = path["/api/keyers/".Length..].Trim('/');
+                if (!TryResolveKeyerRoute(destinationToken, out var destination, out var action))
+                {
+                    await WriteJsonAsync(context.Response, HttpStatusCode.BadRequest, new { message = "Keyer route is invalid." });
+                    return;
+                }
+
+                if (string.Equals(action, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    var autoResult = await _coordinator.RunKeyerAutoAsync(destination);
+                    await WriteJsonAsync(context.Response, autoResult ? HttpStatusCode.OK : HttpStatusCode.NotFound, new
+                    {
+                        message = autoResult ? "Keyer AUTO executed." : "Keyer AUTO handler unavailable.",
+                        destination = destination.ToDisplayName()
+                    });
+                    return;
+                }
+
+                var payload = await ReadJsonAsync<KeyerControlRequest>(request) ?? new KeyerControlRequest();
+                var requestedState = action switch
+                {
+                    "on" => true,
+                    "off" => false,
+                    "toggle" => null,
+                    _ => payload.KeyOn
+                };
+
+                var stateApplied = await _coordinator.SetKeyerStateAsync(destination, requestedState, payload.Opacity);
+                await WriteJsonAsync(context.Response, stateApplied ? HttpStatusCode.OK : HttpStatusCode.NotFound, new
+                {
+                    message = stateApplied ? "Keyer updated." : "Keyer handler unavailable.",
+                    destination = destination.ToDisplayName(),
+                    keyOn = requestedState,
+                    payload.Opacity
+                });
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Post.Method && path.Equals("/api/tally", StringComparison.OrdinalIgnoreCase))
+            {
+                var signal = await ReadJsonAsync<TallySignal>(request);
+                if (signal == null)
+                {
+                    await WriteJsonAsync(context.Response, HttpStatusCode.BadRequest, new { message = "Tally payload is invalid." });
+                    return;
+                }
+
+                signal.RemoteIpAddress = request.RemoteEndPoint?.Address.ToString() ?? signal.RemoteIpAddress;
+                signal.Transport = string.IsNullOrWhiteSpace(signal.Transport) ? "http" : signal.Transport;
+                signal.ReceivedAt = DateTimeOffset.UtcNow;
+
+                var autoTakeTriggered = await _coordinator.ApplyTallySignalAsync(signal);
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "Tally processed.", autoTakeTriggered });
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Post.Method && path.Equals("/api/tally/ndi-metadata", StringComparison.OrdinalIgnoreCase))
+            {
+                using var reader = new StreamReader(request.InputStream, request.ContentEncoding ?? Encoding.UTF8);
+                var metadata = await reader.ReadToEndAsync();
+                var signal = ParseNdiMetadataTally(metadata, request.RemoteEndPoint?.Address.ToString() ?? string.Empty);
+                if (signal == null)
+                {
+                    await WriteJsonAsync(context.Response, HttpStatusCode.BadRequest, new { message = "NDI metadata tally payload is invalid." });
+                    return;
+                }
+
+                var autoTakeTriggered = await _coordinator.ApplyTallySignalAsync(signal);
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "NDI metadata tally processed.", autoTakeTriggered });
                 return;
             }
 
@@ -210,5 +312,87 @@ public class WebApiService : IWebApiService
         response.ContentLength64 = bytes.Length;
         await response.OutputStream.WriteAsync(bytes);
         response.OutputStream.Close();
+    }
+
+    private async Task<T?> ReadJsonAsync<T>(HttpListenerRequest request)
+    {
+        if (!request.HasEntityBody)
+        {
+            return default;
+        }
+
+        return await JsonSerializer.DeserializeAsync<T>(request.InputStream, _jsonOptions);
+    }
+
+    private static bool TryResolveKeyerRoute(string route, out KeyerDestination destination, out string action)
+    {
+        destination = KeyerDestination.Usk1;
+        action = string.Empty;
+
+        var parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0 || !KeyerDestinationParser.TryParse(parts[0], out destination))
+        {
+            return false;
+        }
+
+        action = parts.Length > 1 ? parts[1].ToLowerInvariant() : "state";
+        return true;
+    }
+
+    private static TallySignal? ParseNdiMetadataTally(string metadata, string remoteIpAddress)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return null;
+        }
+
+        var normalized = metadata.ToLowerInvariant();
+        var program = normalized.Contains("program=\"true\"", StringComparison.Ordinal) ||
+                      normalized.Contains("<program>true</program>", StringComparison.Ordinal) ||
+                      normalized.Contains("on_program=\"true\"", StringComparison.Ordinal);
+        var preview = normalized.Contains("preview=\"true\"", StringComparison.Ordinal) ||
+                      normalized.Contains("<preview>true</preview>", StringComparison.Ordinal);
+
+        var source = ExtractAttribute(metadata, "source") ?? ExtractTagValue(metadata, "source") ?? "ndi-metadata";
+
+        return new TallySignal
+        {
+            Source = source,
+            RemoteIpAddress = remoteIpAddress,
+            Transport = "ndi-metadata",
+            Program = program,
+            Preview = preview,
+            Metadata = metadata,
+            ReceivedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static string? ExtractAttribute(string input, string attributeName)
+    {
+        var marker = $"{attributeName}=\"";
+        var index = input.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var start = index + marker.Length;
+        var end = input.IndexOf('"', start);
+        return end > start ? input[start..end] : null;
+    }
+
+    private static string? ExtractTagValue(string input, string tagName)
+    {
+        var startTag = $"<{tagName}>";
+        var endTag = $"</{tagName}>";
+        var start = input.IndexOf(startTag, StringComparison.OrdinalIgnoreCase);
+        var end = input.IndexOf(endTag, StringComparison.OrdinalIgnoreCase);
+        if (start < 0 || end <= start)
+        {
+            return null;
+        }
+
+        start += startTag.Length;
+        return input[start..end].Trim();
     }
 }

@@ -66,6 +66,34 @@ public class SettingsServiceTests : IDisposable
 
         Assert.Equal(5000, service.Settings.WebApiPort);
         Assert.Equal(8000, service.Settings.OscPort);
+        Assert.Equal("127.0.0.1", service.Settings.RemoteControl.OscFeedbackHost);
+    }
+
+    [Fact]
+    public async Task SaveAsync_ShouldPersistRemoteControlSettings()
+    {
+        var service = new SettingsService(_settingsPath);
+        service.Settings.RemoteControl.WebApiHost = "127.0.0.1";
+        service.Settings.RemoteControl.WebApiPort = 5055;
+        service.Settings.RemoteControl.OscPort = 9005;
+        service.Settings.RemoteControl.OscFeedbackHost = "192.168.10.50";
+        service.Settings.RemoteControl.OscFeedbackPort = 9105;
+        service.Settings.RemoteControl.EnableTallyAutoTake = true;
+        service.Settings.RemoteControl.TallyPartnerIpAddress = "192.168.10.1";
+        service.Settings.RemoteControl.TallyPartnerName = "ATEM";
+
+        await service.SaveAsync();
+
+        var loaded = new SettingsService(_settingsPath);
+        await loaded.LoadAsync();
+
+        Assert.Equal("127.0.0.1", loaded.Settings.RemoteControl.WebApiHost);
+        Assert.Equal(5055, loaded.Settings.RemoteControl.WebApiPort);
+        Assert.Equal(9005, loaded.Settings.RemoteControl.OscPort);
+        Assert.Equal("192.168.10.50", loaded.Settings.RemoteControl.OscFeedbackHost);
+        Assert.Equal(9105, loaded.Settings.RemoteControl.OscFeedbackPort);
+        Assert.True(loaded.Settings.RemoteControl.EnableTallyAutoTake);
+        Assert.Equal("ATEM", loaded.Settings.RemoteControl.TallyPartnerName);
     }
 
 

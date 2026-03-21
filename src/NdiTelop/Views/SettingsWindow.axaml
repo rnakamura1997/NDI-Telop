@@ -4,165 +4,209 @@
         xmlns:model="using:NdiTelop.Models"
         x:Class="NdiTelop.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
-        Width="760" Height="1180"
+        Width="860" Height="820"
         Title="設定">
   <Design.DataContext>
     <vm:SettingsWindowViewModel />
   </Design.DataContext>
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnDefinitions="190,*" RowSpacing="8" ColumnSpacing="8">
-    <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="NDI設定" FontSize="16" FontWeight="Bold" Margin="0,0,0,4" />
+  <Grid RowDefinitions="*,Auto" Margin="16">
+    <TabControl>
+      <TabItem Header="General">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="12" Margin="4">
+            <TextBlock Text="NDI設定" FontSize="16" FontWeight="Bold" />
+            <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Source Name" VerticalAlignment="Center" />
+              <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding NdiConfig.SourceName}" />
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="解像度" VerticalAlignment="Center" />
+              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <TextBox Width="90" Text="{Binding NdiConfig.ResolutionWidth}" />
+                <TextBlock Text="x" VerticalAlignment="Center" />
+                <TextBox Width="90" Text="{Binding NdiConfig.ResolutionHeight}" />
+              </StackPanel>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Frame Rate" VerticalAlignment="Center" />
+              <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <TextBox Width="90" Text="{Binding NdiConfig.FrameRateN}" />
+                <TextBlock Text="/" VerticalAlignment="Center" />
+                <TextBox Width="90" Text="{Binding NdiConfig.FrameRateD}" />
+              </StackPanel>
+            </Grid>
 
-    <TextBlock Grid.Row="1" Grid.Column="0" Text="Source Name" VerticalAlignment="Center" />
-    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NdiConfig.SourceName}" />
+            <TextBlock Text="アセットパス" FontSize="16" FontWeight="Bold" Margin="0,8,0,0" />
+            <TextBox Text="{Binding AssetPath}" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
 
-    <TextBlock Grid.Row="2" Grid.Column="0" Text="解像度" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-      <TextBox Width="90" Text="{Binding NdiConfig.ResolutionWidth}" />
-      <TextBlock Text="x" VerticalAlignment="Center" />
-      <TextBox Width="90" Text="{Binding NdiConfig.ResolutionHeight}" />
-    </StackPanel>
+      <TabItem Header="Remote Control">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="12" Margin="4">
+            <TextBlock Text="Remote Control" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="HTTP / OSC / Tally 連携の待ち受け設定です。" Foreground="#AAFFFFFF" />
 
-    <TextBlock Grid.Row="3" Grid.Column="0" Text="Frame Rate" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-      <TextBox Width="90" Text="{Binding NdiConfig.FrameRateN}" />
-      <TextBlock Text="/" VerticalAlignment="Center" />
-      <TextBox Width="90" Text="{Binding NdiConfig.FrameRateD}" />
-    </StackPanel>
+            <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+              <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Web API Server" FontWeight="Bold" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Bind Host" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding WebApiHost}" Watermark="* または 127.0.0.1" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Listen Port" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Width="140" HorizontalAlignment="Left" Text="{Binding WebApiPort}" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Control Examples" VerticalAlignment="Top" />
+                <StackPanel Grid.Row="3" Grid.Column="1" Spacing="2">
+                  <TextBlock Text="POST /take { presetId }" />
+                  <TextBlock Text="POST /api/keyers/usk1/on" />
+                  <TextBlock Text="POST /api/tally" />
+                </StackPanel>
+              </Grid>
+            </Border>
 
-    <Separator Grid.Row="4" Grid.ColumnSpan="2" Margin="0,6" />
+            <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+              <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="OSC" FontWeight="Bold" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Receive Port" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Width="140" HorizontalAlignment="Left" Text="{Binding OscPort}" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Feedback Host" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding OscFeedbackHost}" Watermark="127.0.0.1" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Feedback Port" VerticalAlignment="Center" />
+                <TextBox Grid.Row="3" Grid.Column="1" Width="140" HorizontalAlignment="Left" Text="{Binding OscFeedbackPort}" />
+              </Grid>
+            </Border>
 
-    <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Text="OSC / Webポート設定" FontSize="16" FontWeight="Bold" Margin="0,0,0,4" />
+            <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+              <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Tally Auto Take" FontWeight="Bold" />
+                <CheckBox Grid.Row="1" Grid.ColumnSpan="2" Content="受信した Tally の Program 立ち上がりで自動 AUTO を実行" IsChecked="{Binding EnableTallyAutoTake}" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Partner IP" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TallyPartnerIpAddress}" Watermark="空欄で全て許可" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Partner Name" VerticalAlignment="Center" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding TallyPartnerName}" Watermark="ATEM / NDI source name など" />
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Auto Take Keyer" VerticalAlignment="Center" />
+                <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding AvailableKeyers}" SelectedItem="{Binding TallyAutoTakeKeyer}" />
+              </Grid>
+            </Border>
 
-    <TextBlock Grid.Row="6" Grid.Column="0" Text="Web API Port" VerticalAlignment="Center" />
-    <TextBox Grid.Row="6" Grid.Column="1" Width="140" Text="{Binding WebApiPort}" HorizontalAlignment="Left" />
+            <CheckBox Content="NDI metadata tally を受け付ける" IsChecked="{Binding AcceptNdiMetadataTally}" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
 
-    <TextBlock Grid.Row="7" Grid.Column="0" Text="OSC Port" VerticalAlignment="Center" />
-    <TextBox Grid.Row="7" Grid.Column="1" Width="140" Text="{Binding OscPort}" HorizontalAlignment="Left" />
+      <TabItem Header="Hotkeys">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="8" Margin="4">
+            <TextBlock Text="ホットキー設定 (例: Ctrl+Alt+1)" FontSize="16" FontWeight="Bold" />
+            <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Preset 1" VerticalAlignment="Center" />
+              <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Preset1Hotkey}" />
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Preset 2" VerticalAlignment="Center" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Preset2Hotkey}" />
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Preset 3" VerticalAlignment="Center" />
+              <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Preset3Hotkey}" />
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Preset 4" VerticalAlignment="Center" />
+              <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Preset4Hotkey}" />
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Preset 5" VerticalAlignment="Center" />
+              <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Preset5Hotkey}" />
+              <TextBlock Grid.Row="5" Grid.Column="0" Text="Clear Program" VerticalAlignment="Center" />
+              <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ClearProgramHotkey}" />
+            </Grid>
 
-    <Separator Grid.Row="8" Grid.ColumnSpan="2" Margin="0,6" />
-    <TextBlock Grid.Row="9" Grid.ColumnSpan="2" Text="ホットキー設定 (例: Ctrl+Alt+1)" FontSize="16" FontWeight="Bold" />
-
-    <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Spacing="6">
-      <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="Preset 1" VerticalAlignment="Center" />
-        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Preset1Hotkey}" />
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="Preset 2" VerticalAlignment="Center" />
-        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Preset2Hotkey}" />
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Preset 3" VerticalAlignment="Center" />
-        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Preset3Hotkey}" />
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="Preset 4" VerticalAlignment="Center" />
-        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Preset4Hotkey}" />
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Preset 5" VerticalAlignment="Center" />
-        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Preset5Hotkey}" />
-        <TextBlock Grid.Row="5" Grid.Column="0" Text="Clear Program" VerticalAlignment="Center" />
-        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ClearProgramHotkey}" />
-      </Grid>
-    </StackPanel>
-
-    <StackPanel Grid.Row="11" Grid.ColumnSpan="2" Spacing="8" Margin="0,8,0,0">
-      <TextBlock Text="ショートカットキー一覧" FontSize="16" FontWeight="Bold" />
-      <TextBlock Text="現在設定されているショートカットとアクションの対応です。" Foreground="#AAFFFFFF" />
-      <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
-        <StackPanel Spacing="8">
-          <Grid ColumnDefinitions="2*,2*,Auto">
-            <TextBlock Grid.Column="0" Text="ショートカット" FontWeight="Bold" />
-            <TextBlock Grid.Column="1" Text="アクション" FontWeight="Bold" />
-            <TextBlock Grid.Column="2" Text="状態" FontWeight="Bold" />
-          </Grid>
-          <Separator />
-          <ItemsControl ItemsSource="{Binding HotkeyBindings}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="model:HotkeyBindingDisplayItem">
-                <Grid ColumnDefinitions="2*,2*,Auto" Margin="0,2,0,2">
-                  <TextBlock Grid.Column="0" Text="{Binding Shortcut}" TextWrapping="Wrap" />
-                  <TextBlock Grid.Column="1" Text="{Binding ActionName}" TextWrapping="Wrap" Margin="8,0,0,0" />
-                  <TextBlock Grid.Column="2" Text="{Binding RegistrationStatus}" Margin="8,0,0,0" />
+            <TextBlock Text="ショートカットキー一覧" FontSize="16" FontWeight="Bold" Margin="0,8,0,0" />
+            <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="2*,2*,Auto">
+                  <TextBlock Grid.Column="0" Text="ショートカット" FontWeight="Bold" />
+                  <TextBlock Grid.Column="1" Text="アクション" FontWeight="Bold" />
+                  <TextBlock Grid.Column="2" Text="状態" FontWeight="Bold" />
                 </Grid>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </Border>
-    </StackPanel>
+                <Separator />
+                <ItemsControl ItemsSource="{Binding HotkeyBindings}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="model:HotkeyBindingDisplayItem">
+                      <Grid ColumnDefinitions="2*,2*,Auto" Margin="0,2,0,2">
+                        <TextBlock Grid.Column="0" Text="{Binding Shortcut}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="1" Text="{Binding ActionName}" TextWrapping="Wrap" Margin="8,0,0,0" />
+                        <TextBlock Grid.Column="2" Text="{Binding RegistrationStatus}" Margin="8,0,0,0" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
 
-    <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Spacing="8" Margin="0,8,0,0">
-      <TextBlock Text="アセットパス" FontSize="16" FontWeight="Bold" />
-      <TextBox Text="{Binding AssetPath}" />
-    </StackPanel>
+      <TabItem Header="Appearance &amp; Output">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="12" Margin="4">
+            <TextBlock Text="テーマ設定" FontSize="16" FontWeight="Bold" />
+            <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="テーマ" VerticalAlignment="Center" />
+              <ComboBox Grid.Row="0" Grid.Column="1" SelectedItem="{Binding ThemeMode}">
+                <x:String>Light</x:String>
+                <x:String>Dark</x:String>
+              </ComboBox>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="アクセントカラー" VerticalAlignment="Center" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AccentColor}" Watermark="#FF0A84FF" />
+            </Grid>
 
-    <Separator Grid.Row="13" Grid.ColumnSpan="2" Margin="0,6" />
-    <TextBlock Grid.Row="14" Grid.ColumnSpan="2" Text="テーマ設定" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="出力バックエンド設定" FontSize="16" FontWeight="Bold" Margin="0,8,0,0" />
+            <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="バックエンド" VerticalAlignment="Center" />
+              <ComboBox Grid.Row="0" Grid.Column="1" SelectedItem="{Binding SelectedOutputBackend}">
+                <x:Static Member="model:OutputBackendType.Ndi" />
+                <x:Static Member="model:OutputBackendType.Spout2" />
+                <x:Static Member="model:OutputBackendType.VirtualCamera" />
+                <x:Static Member="model:OutputBackendType.DeckLink" />
+              </ComboBox>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Spout2 Sender Name" VerticalAlignment="Center" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SpoutSenderName}" Watermark="NdiTelop-Spout2" />
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="DeckLink Device Index" VerticalAlignment="Center" />
+              <TextBox Grid.Row="2" Grid.Column="1" Width="140" HorizontalAlignment="Left" Text="{Binding DeckLinkDeviceIndex}" />
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
 
-    <Grid Grid.Row="15" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="テーマ" VerticalAlignment="Center" />
-      <ComboBox Grid.Row="0" Grid.Column="1" SelectedItem="{Binding ThemeMode}">
-        <x:String>Light</x:String>
-        <x:String>Dark</x:String>
-      </ComboBox>
+      <TabItem Header="Logs &amp; Backup">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="12" Margin="4">
+            <TextBlock Text="ログビューア設定" FontSize="16" FontWeight="Bold" />
+            <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="ログレベル表示" VerticalAlignment="Center" />
+              <WrapPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" ItemHeight="30" ItemWidth="110">
+                <CheckBox Content="Debug" IsChecked="{Binding ShowDebugLogs}" />
+                <CheckBox Content="Information" IsChecked="{Binding ShowInformationLogs}" />
+                <CheckBox Content="Warning" IsChecked="{Binding ShowWarningLogs}" />
+                <CheckBox Content="Error" IsChecked="{Binding ShowErrorLogs}" />
+                <CheckBox Content="Fatal" IsChecked="{Binding ShowFatalLogs}" />
+              </WrapPanel>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="キーワード" VerticalAlignment="Center" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LogKeyword}" Watermark="ログ検索キーワード" />
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="自動スクロール" VerticalAlignment="Center" />
+              <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding AutoScrollLogs}" Content="新規ログ追加時に最下部へスクロール" />
+            </Grid>
 
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="アクセントカラー" VerticalAlignment="Center" />
-      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AccentColor}" Watermark="#FF0A84FF" />
-    </Grid>
+            <TextBlock Text="バックアップ / 復元" FontSize="16" FontWeight="Bold" Margin="0,8,0,0" />
+            <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="バックアップ" VerticalAlignment="Center" />
+              <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="バックアップ作成" Width="140" Click="CreateBackupButton_OnClick" />
+                <TextBlock VerticalAlignment="Center" Text="設定・プリセット・アセットをzipに保存します。" />
+              </StackPanel>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="復元" VerticalAlignment="Center" />
+              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="バックアップを復元" Width="140" Click="RestoreBackupButton_OnClick" />
+                <TextBlock VerticalAlignment="Center" Text="zipからアプリ状態をまとめて復元します。" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
 
-    <Separator Grid.Row="16" Grid.ColumnSpan="2" Margin="0,6" />
-    <TextBlock Grid.Row="17" Grid.ColumnSpan="2" Text="出力バックエンド設定" FontSize="16" FontWeight="Bold" />
-
-    <Grid Grid.Row="18" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="バックエンド" VerticalAlignment="Center" />
-      <ComboBox Grid.Row="0" Grid.Column="1" SelectedItem="{Binding SelectedOutputBackend}">
-        <x:Static Member="model:OutputBackendType.Ndi" />
-        <x:Static Member="model:OutputBackendType.Spout2" />
-        <x:Static Member="model:OutputBackendType.VirtualCamera" />
-        <x:Static Member="model:OutputBackendType.DeckLink" />
-      </ComboBox>
-
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Spout2 Sender Name" VerticalAlignment="Center" />
-      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SpoutSenderName}" Watermark="NdiTelop-Spout2" />
-
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="DeckLink Device Index" VerticalAlignment="Center" />
-      <TextBox Grid.Row="2" Grid.Column="1" Width="140" HorizontalAlignment="Left" Text="{Binding DeckLinkDeviceIndex}" />
-    </Grid>
-
-    <Separator Grid.Row="19" Grid.ColumnSpan="2" Margin="0,6" />
-    <TextBlock Grid.Row="20" Grid.ColumnSpan="2" Text="ログビューア設定" FontSize="16" FontWeight="Bold" />
-
-    <Grid Grid.Row="21" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="ログレベル表示" VerticalAlignment="Center" />
-      <WrapPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" ItemHeight="30" ItemWidth="110">
-        <CheckBox Content="Debug" IsChecked="{Binding ShowDebugLogs}" />
-        <CheckBox Content="Information" IsChecked="{Binding ShowInformationLogs}" />
-        <CheckBox Content="Warning" IsChecked="{Binding ShowWarningLogs}" />
-        <CheckBox Content="Error" IsChecked="{Binding ShowErrorLogs}" />
-        <CheckBox Content="Fatal" IsChecked="{Binding ShowFatalLogs}" />
-      </WrapPanel>
-
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="キーワード" VerticalAlignment="Center" />
-      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LogKeyword}" Watermark="ログ検索キーワード" />
-
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="自動スクロール" VerticalAlignment="Center" />
-      <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding AutoScrollLogs}" Content="新規ログ追加時に最下部へスクロール" />
-    </Grid>
-
-    <Separator Grid.Row="22" Grid.ColumnSpan="2" Margin="0,6" />
-    <TextBlock Grid.Row="23" Grid.ColumnSpan="2" Text="バックアップ / 復元" FontSize="16" FontWeight="Bold" />
-
-    <Grid Grid.Row="24" Grid.ColumnSpan="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="バックアップ" VerticalAlignment="Center" />
-      <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <Button Content="バックアップ作成" Width="140" Click="CreateBackupButton_OnClick" />
-        <TextBlock VerticalAlignment="Center" Text="設定・プリセット・アセットをzipに保存します。" />
-      </StackPanel>
-
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="復元" VerticalAlignment="Center" />
-      <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <Button Content="バックアップを復元" Width="140" Click="RestoreBackupButton_OnClick" />
-        <TextBlock VerticalAlignment="Center" Text="zipからアプリ状態をまとめて復元します。" />
-      </StackPanel>
-    </Grid>
-
-    <TextBlock Grid.Row="25" Grid.ColumnSpan="2" Text="{Binding Status}" />
-    <StackPanel Grid.Row="26" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <TextBlock VerticalAlignment="Center" Text="{Binding Status}" Margin="0,0,12,0" />
       <Button Content="読込" Command="{Binding LoadCommand}" Width="96" />
       <Button Content="保存" Command="{Binding SaveCommand}" Width="96" />
     </StackPanel>

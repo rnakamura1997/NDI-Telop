@@ -35,9 +35,23 @@ public class SettingsService : ISettingsService
         }
 
         Settings = loaded;
+        Settings.RemoteControl ??= new RemoteControlSettings();
+        Settings.RemoteControl.OscFeedbackPort = Settings.RemoteControl.OscFeedbackPort <= 0
+            ? Settings.RemoteControl.OscPort
+            : Settings.RemoteControl.OscFeedbackPort;
 
         await using var compatibilityStream = File.OpenRead(_settingsFilePath);
         using var json = await JsonDocument.ParseAsync(compatibilityStream);
+
+        if (json.RootElement.TryGetProperty("WebApiPort", out var webApiPortElement) && Settings.RemoteControl.WebApiPort == 5000)
+        {
+            Settings.RemoteControl.WebApiPort = webApiPortElement.GetInt32();
+        }
+
+        if (json.RootElement.TryGetProperty("OscPort", out var oscPortProperty) && Settings.RemoteControl.OscPort == 8000)
+        {
+            Settings.RemoteControl.OscPort = oscPortProperty.GetInt32();
+        }
 
         if (json.RootElement.TryGetProperty("HttpPort", out var httpPortElement) && Settings.WebApiPort == 5000)
         {
@@ -86,6 +100,7 @@ public class SettingsService : ISettingsService
         if (loaded != null)
         {
             Settings = loaded;
+            Settings.RemoteControl ??= new RemoteControlSettings();
             await SaveAsync();
         }
     }

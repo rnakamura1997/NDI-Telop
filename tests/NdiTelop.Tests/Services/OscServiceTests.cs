@@ -118,6 +118,57 @@ public class OscServiceTests
         }
     }
 
+    [Fact]
+    public async Task ListenLoopAsync_ShouldExecuteTakeAndKeyerCommands()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<NdiTelop.Models.Preset>
+        {
+            new() { Id = "preset-osc-take", Name = "Osc Take" }
+        });
+
+        var coordinator = new ExternalControlCoordinator(presetService);
+        var takeTriggered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var keyerTriggered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.TakePresetHandler = _ =>
+        {
+            takeTriggered.TrySetResult(true);
+            return Task.CompletedTask;
+        };
+        coordinator.SetKeyerStateHandler = (destination, state, _) =>
+        {
+            if (destination == NdiTelop.Models.KeyerDestination.Dsk1 && state == true)
+            {
+                keyerTriggered.TrySetResult(true);
+            }
+
+            return Task.FromResult(true);
+        };
+
+        var service = new OscService(coordinator)
+        {
+            ReceivePort = GetFreeUdpPort()
+        };
+
+        await service.StartAsync();
+        try
+        {
+            using var sender = new UdpClient();
+            var takePacket = BuildStringPacket("/take", "preset-osc-take");
+            await sender.SendAsync(takePacket, takePacket.Length, "127.0.0.1", service.ReceivePort);
+
+            var keyerPacket = BuildAddressOnlyPacket("/keyer/dsk1/on");
+            await sender.SendAsync(keyerPacket, keyerPacket.Length, "127.0.0.1", service.ReceivePort);
+
+            Assert.Same(takeTriggered.Task, await Task.WhenAny(takeTriggered.Task, Task.Delay(1000)));
+            Assert.Same(keyerTriggered.Task, await Task.WhenAny(keyerTriggered.Task, Task.Delay(1000)));
+        }
+        finally
+        {
+            await service.StopAsync();
+        }
+    }
+
     private static int GetFreeUdpPort()
     {
         using var listener = new UdpClient(AddressFamily.InterNetwork);
@@ -134,6 +185,28 @@ public class OscServiceTests
         Buffer.BlockCopy(addressBytes, 0, packet, 0, addressBytes.Length);
         packet[addressLength + addressPadding] = (byte)',';
         return packet;
+    }
+
+    private static byte[] BuildStringPacket(string address, string value)
+    {
+        var addressBytes = PadString(address);
+        var typeBytes = PadString(",s");
+        var argBytes = PadString(value);
+        var packet = new byte[addressBytes.Length + typeBytes.Length + argBytes.Length];
+        Buffer.BlockCopy(addressBytes, 0, packet, 0, addressBytes.Length);
+        Buffer.BlockCopy(typeBytes, 0, packet, addressBytes.Length, typeBytes.Length);
+        Buffer.BlockCopy(argBytes, 0, packet, addressBytes.Length + typeBytes.Length, argBytes.Length);
+        return packet;
+    }
+
+    private static byte[] PadString(string value)
+    {
+        var data = Encoding.UTF8.GetBytes(value);
+        var length = data.Length + 1;
+        var padding = (4 - (length % 4)) % 4;
+        var output = new byte[length + padding];
+        Buffer.BlockCopy(data, 0, output, 0, data.Length);
+        return output;
     }
 
     private static string ReadOscString(byte[] payload, ref int cursor)

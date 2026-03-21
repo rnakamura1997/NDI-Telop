@@ -5,8 +5,7 @@ namespace NdiTelop.Models;
 public class AppSettings
 {
     public NdiConfig Ndi { get; set; } = new();
-    public int WebApiPort { get; set; } = 5000;
-    public int OscPort { get; set; } = 8000;
+    public RemoteControlSettings RemoteControl { get; set; } = new();
     public string AssetPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "data", "assets");
 
     public HotkeySettings Hotkeys { get; set; } = new();
@@ -20,14 +19,28 @@ public class AppSettings
     [JsonIgnore]
     public int HttpPort
     {
-        get => WebApiPort;
-        set => WebApiPort = value;
+        get => RemoteControl.WebApiPort;
+        set => RemoteControl.WebApiPort = value;
     }
 
     [JsonIgnore]
     public int OscReceivePort
     {
-        get => OscPort;
-        set => OscPort = value;
+        get => RemoteControl.OscPort;
+        set => RemoteControl.OscPort = value;
+    }
+
+    [JsonIgnore]
+    public int WebApiPort
+    {
+        get => RemoteControl.WebApiPort;
+        set => RemoteControl.WebApiPort = value;
+    }
+
+    [JsonIgnore]
+    public int OscPort
+    {
+        get => RemoteControl.OscPort;
+        set => RemoteControl.OscPort = value;
     }
 }

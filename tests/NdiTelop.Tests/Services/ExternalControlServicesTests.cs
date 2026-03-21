@@ -70,8 +70,25 @@ public class ExternalControlServicesTests
             ResolutionHeight = 720,
             FrameRateN = 60000,
             FrameRateD = 1001,
+            WebApiHost = "127.0.0.1",
             WebApiPort = 5001,
-            OscPort = 9001
+            OscPort = 9001,
+            OscFeedbackHost = "127.0.0.1",
+            OscFeedbackPort = 9002,
+            EnableTallyAutoTake = true,
+            TallyPartnerIpAddress = "127.0.0.1",
+            TallyAutoTakeKeyer = "USK2"
+        };
+        coordinator.GetRemoteControlSettingsHandler = () => new RemoteControlSettings
+        {
+            WebApiHost = "127.0.0.1",
+            WebApiPort = 5001,
+            OscPort = 9001,
+            OscFeedbackHost = "127.0.0.1",
+            OscFeedbackPort = 9002,
+            EnableTallyAutoTake = true,
+            TallyPartnerIpAddress = "127.0.0.1",
+            TallyAutoTakeKeyer = KeyerDestination.Usk2
         };
 
         var cleared = false;
@@ -79,6 +96,26 @@ public class ExternalControlServicesTests
         {
             cleared = true;
             return Task.CompletedTask;
+        };
+        var takenId = string.Empty;
+        coordinator.TakePresetHandler = presetToTake =>
+        {
+            takenId = presetToTake.Id;
+            return Task.CompletedTask;
+        };
+        var keyerAutoDestination = KeyerDestination.Usk1;
+        coordinator.RunKeyerAutoHandler = destination =>
+        {
+            keyerAutoDestination = destination;
+            return Task.FromResult(true);
+        };
+        KeyerDestination? keyerStateDestination = null;
+        bool? keyerState = null;
+        coordinator.SetKeyerStateHandler = (destination, isOn, _) =>
+        {
+            keyerStateDestination = destination;
+            keyerState = isOn;
+            return Task.FromResult(true);
         };
 
         var port = GetFreeTcpPort();
@@ -113,10 +150,70 @@ public class ExternalControlServicesTests
             var settings = await settingsResponse.Content.ReadFromJsonAsync<ExternalBasicSettings>();
             Assert.Equal("NdiTelop-Test", settings?.NdiSourceName);
             Assert.Equal(1280, settings?.ResolutionWidth);
+            Assert.Equal("127.0.0.1", settings?.WebApiHost);
 
             var clearResponse = await client.PostAsync("/api/program/clear", null);
             Assert.Equal(HttpStatusCode.OK, clearResponse.StatusCode);
             Assert.True(cleared);
+
+            var takeResponse = await client.PostAsJsonAsync("/take", new TakeRequest { PresetId = "preset-api" });
+            Assert.Equal(HttpStatusCode.OK, takeResponse.StatusCode);
+            Assert.Equal("preset-api", takenId);
+
+            var keyerOnResponse = await client.PostAsJsonAsync("/api/keyers/usk2/on", new KeyerControlRequest());
+            Assert.Equal(HttpStatusCode.OK, keyerOnResponse.StatusCode);
+            Assert.Equal(KeyerDestination.Usk2, keyerStateDestination);
+            Assert.True(keyerState);
+
+            var tallyResponse = await client.PostAsJsonAsync("/api/tally", new TallySignal
+            {
+                Source = "ATEM",
+                Program = true
+            });
+            Assert.Equal(HttpStatusCode.OK, tallyResponse.StatusCode);
+            Assert.Equal(KeyerDestination.Usk2, keyerAutoDestination);
+        }
+        finally
+        {
+            await webApiService.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task WebApiService_ShouldAcceptNdiMetadataTally()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+        var coordinator = new ExternalControlCoordinator(presetService);
+        coordinator.GetRemoteControlSettingsHandler = () => new RemoteControlSettings
+        {
+            EnableTallyAutoTake = true,
+            AcceptNdiMetadataTally = true
+        };
+
+        var autoCount = 0;
+        coordinator.RunKeyerAutoHandler = _ =>
+        {
+            autoCount++;
+            return Task.FromResult(true);
+        };
+
+        var port = GetFreeTcpPort();
+        var webApiService = new WebApiService(coordinator)
+        {
+            Host = "127.0.0.1",
+            Port = port
+        };
+
+        await webApiService.StartAsync();
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using var content = new StringContent("<tally source=\"camera-1\" program=\"true\" />", System.Text.Encoding.UTF8, "application/xml");
+            var response = await client.PostAsync("/api/tally/ndi-metadata", content);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(1, autoCount);
         }
         finally
         {
