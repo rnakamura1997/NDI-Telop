@@ -19,6 +19,8 @@ public class ExternalControlCoordinator
     public Func<Task>? ClearProgramHandler { get; set; }
     public Func<KeyerDestination, bool?, double?, Task<bool>>? SetKeyerStateHandler { get; set; }
     public Func<KeyerDestination, Task<bool>>? RunKeyerAutoHandler { get; set; }
+    public Func<Task>? NextCueHandler { get; set; }
+    public Func<PlaylistStatusSnapshot>? GetPlaylistSnapshotHandler { get; set; }
     public Func<string>? GetNdiOutputStatusHandler { get; set; }
     public Func<ExternalBasicSettings>? GetBasicSettingsHandler { get; set; }
     public Func<RemoteControlSettings>? GetRemoteControlSettingsHandler { get; set; }
@@ -70,6 +72,20 @@ public class ExternalControlCoordinator
         await ClearProgramHandler.Invoke();
         return true;
     }
+
+
+    public async Task<bool> TriggerNextCueAsync()
+    {
+        if (NextCueHandler == null)
+        {
+            return false;
+        }
+
+        await NextCueHandler.Invoke();
+        return true;
+    }
+
+    public PlaylistStatusSnapshot GetPlaylistSnapshot() => GetPlaylistSnapshotHandler?.Invoke() ?? new PlaylistStatusSnapshot();
 
     public string GetNdiOutputStatus() => GetNdiOutputStatusHandler?.Invoke() ?? "Inactive";
 

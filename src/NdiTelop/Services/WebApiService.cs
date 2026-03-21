@@ -141,6 +141,12 @@ public class WebApiService : IWebApiService
                 return;
             }
 
+            if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/api/playlist/status", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteJsonAsync(context.Response, HttpStatusCode.OK, _coordinator.GetPlaylistSnapshot());
+                return;
+            }
+
             if (request.HttpMethod == HttpMethod.Get.Method && path.Equals("/api/settings/basic", StringComparison.OrdinalIgnoreCase))
             {
                 await WriteJsonAsync(context.Response, HttpStatusCode.OK, _coordinator.GetBasicSettings());
@@ -163,6 +169,13 @@ public class WebApiService : IWebApiService
                 }
 
                 await WriteJsonAsync(context.Response, HttpStatusCode.OK, new { message = "Program output cleared." });
+                return;
+            }
+
+            if (request.HttpMethod == HttpMethod.Post.Method && path.Equals("/api/playlist/next-cue", StringComparison.OrdinalIgnoreCase))
+            {
+                var advanced = await _coordinator.TriggerNextCueAsync();
+                await WriteJsonAsync(context.Response, advanced ? HttpStatusCode.OK : HttpStatusCode.NotFound, new { message = advanced ? "Next cue triggered." : "Next cue handler unavailable." });
                 return;
             }
 
