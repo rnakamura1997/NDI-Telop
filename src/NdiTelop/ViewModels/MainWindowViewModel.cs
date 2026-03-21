@@ -705,9 +705,13 @@ public partial class MainWindowViewModel : ObservableObject
         if (_externalControlCoordinator != null)
         {
             _externalControlCoordinator.ShowPresetHandler = preset => ShowPresetAsync(preset);
+            _externalControlCoordinator.TakePresetHandler = preset => TakePresetAsync(preset);
             _externalControlCoordinator.ClearProgramHandler = ClearProgram;
             _externalControlCoordinator.GetNdiOutputStatusHandler = () => NdiOutputStatus;
             _externalControlCoordinator.GetBasicSettingsHandler = CreateExternalBasicSettings;
+            _externalControlCoordinator.GetRemoteControlSettingsHandler = () => _settingsService.Settings.RemoteControl;
+            _externalControlCoordinator.SetKeyerStateHandler = ApplyRemoteKeyerStateAsync;
+            _externalControlCoordinator.RunKeyerAutoHandler = RunKeyerAutoByDestinationAsync;
         }
 
         if (_hotkeyService != null)
@@ -1655,6 +1659,19 @@ public partial class MainWindowViewModel : ObservableObject
         return ApplyProgramPresetAsync(preset, immediate: true, actionName: "Show");
     }
 
+    private Task TakePresetAsync(Preset? preset)
+    {
+        if (preset == null)
+        {
+            Status = "No preset selected to take.";
+            return Task.CompletedTask;
+        }
+
+        CancelAutoClear("remote take");
+        CurrentPreviewPreset = preset;
+        return ApplyProgramPresetAsync(preset, immediate: false, actionName: "TAKE");
+    }
+
     private Task ApplyProgramPresetAsync(Preset preset, bool immediate, string actionName)
     {
         if (CurrentProgramPreset == preset)
@@ -1887,6 +1904,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private ExternalBasicSettings CreateExternalBasicSettings()
     {
+        var remote = _settingsService.Settings.RemoteControl;
         return new ExternalBasicSettings
         {
             NdiSourceName = NdiConfig.SourceName,
@@ -1894,9 +1912,61 @@ public partial class MainWindowViewModel : ObservableObject
             ResolutionHeight = NdiConfig.ResolutionHeight,
             FrameRateN = NdiConfig.FrameRateN,
             FrameRateD = NdiConfig.FrameRateD,
-            WebApiPort = _settingsService.Settings.WebApiPort,
-            OscPort = _settingsService.Settings.OscPort
+            WebApiHost = remote.WebApiHost,
+            WebApiPort = remote.WebApiPort,
+            OscPort = remote.OscPort,
+            OscFeedbackHost = remote.OscFeedbackHost,
+            OscFeedbackPort = remote.OscFeedbackPort,
+            EnableTallyAutoTake = remote.EnableTallyAutoTake,
+            TallyPartnerIpAddress = remote.TallyPartnerIpAddress,
+            TallyPartnerName = remote.TallyPartnerName,
+            TallyAutoTakeKeyer = remote.TallyAutoTakeKeyer.ToDisplayName()
         };
+    }
+
+    private Task<bool> ApplyRemoteKeyerStateAsync(KeyerDestination destination, bool? keyOn, double? opacity)
+    {
+        var preset = CurrentProgramPreset ?? SelectedPreset;
+        if (preset == null)
+        {
+            Status = $"Remote keyer ignored: no preset loaded ({destination.ToDisplayName()}).";
+            return Task.FromResult(false);
+        }
+
+        var keyer = preset.GetKeyer(destination);
+        if (keyOn.HasValue)
+        {
+            keyer.KeyOn = keyOn.Value;
+            CompleteKeyerTransition(destination);
+        }
+        else
+        {
+            keyer.KeyOn = !keyer.KeyOn;
+            CompleteKeyerTransition(destination);
+        }
+
+        if (opacity.HasValue)
+        {
+            keyer.Opacity = Math.Clamp(opacity.Value, 0.0, 1.0);
+        }
+
+        RefreshEditorCollections(SelectedPreset);
+        OnPropertyChanged(nameof(SelectedPreset));
+        Status = $"Remote keyer update: {destination.ToDisplayName()}";
+        return Task.FromResult(true);
+    }
+
+    private async Task<bool> RunKeyerAutoByDestinationAsync(KeyerDestination destination)
+    {
+        var keyer = CurrentProgramPreset?.GetKeyer(destination) ?? SelectedPreset?.GetKeyer(destination);
+        if (keyer == null)
+        {
+            Status = $"Remote AUTO ignored: keyer not available ({destination.ToDisplayName()}).";
+            return false;
+        }
+
+        await RunKeyerAutoAsync(keyer);
+        return true;
     }
 
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)

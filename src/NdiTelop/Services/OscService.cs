@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using NdiTelop.Interfaces;
+using NdiTelop.Models;
 using Serilog;
 
 namespace NdiTelop.Services;
@@ -137,9 +138,40 @@ public class OscService : IOscService
                 continue;
             }
 
+            var arguments = ExtractOscArguments(received.Buffer);
+
             if (TryGetPresetId(address, out var presetId))
             {
                 await _coordinator.ShowPresetByIdAsync(presetId);
+                continue;
+            }
+
+            if (string.Equals(address, "/take", StringComparison.OrdinalIgnoreCase))
+            {
+                var requestedId = arguments.OfType<string>().FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(requestedId))
+                {
+                    await _coordinator.TakePresetByIdAsync(requestedId);
+                }
+
+                continue;
+            }
+
+            if (TryParseKeyerCommand(address, arguments, out var destination, out var keyOn, out var opacity, out var runAuto))
+            {
+                if (runAuto)
+                {
+                    await _coordinator.RunKeyerAutoAsync(destination);
+                }
+                else
+                {
+                    await _coordinator.SetKeyerStateAsync(destination, keyOn, opacity);
+                }
+            }
+
+            if (TryParseTallyCommand(address, arguments, received.RemoteEndPoint, out var signal))
+            {
+                await _coordinator.ApplyTallySignalAsync(signal);
             }
         }
     }
@@ -178,6 +210,146 @@ public class OscService : IOscService
         }
 
         presetId = id;
+        return true;
+    }
+
+    internal static IReadOnlyList<object> ExtractOscArguments(byte[] payload)
+    {
+        var values = new List<object>();
+        var firstTerminator = Array.IndexOf(payload, (byte)0);
+        if (firstTerminator < 0)
+        {
+            return values;
+        }
+
+        var cursor = AlignOscOffset(firstTerminator + 1);
+        if (cursor >= payload.Length || payload[cursor] != (byte)',')
+        {
+            return values;
+        }
+
+        var typeTagEnd = Array.IndexOf(payload, (byte)0, cursor);
+        if (typeTagEnd < 0)
+        {
+            return values;
+        }
+
+        var typeTags = Encoding.UTF8.GetString(payload, cursor + 1, typeTagEnd - cursor - 1);
+        cursor = AlignOscOffset(typeTagEnd + 1);
+
+        foreach (var tag in typeTags)
+        {
+            switch (tag)
+            {
+                case 'i':
+                    if (cursor + 4 <= payload.Length)
+                    {
+                        values.Add(BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(cursor, 4)));
+                        cursor += 4;
+                    }
+                    break;
+                case 'f':
+                    if (cursor + 4 <= payload.Length)
+                    {
+                        values.Add(BinaryPrimitives.ReadSingleBigEndian(payload.AsSpan(cursor, 4)));
+                        cursor += 4;
+                    }
+                    break;
+                case 's':
+                    var end = Array.IndexOf(payload, (byte)0, cursor);
+                    if (end > cursor)
+                    {
+                        values.Add(Encoding.UTF8.GetString(payload, cursor, end - cursor));
+                        cursor = AlignOscOffset(end + 1);
+                    }
+                    break;
+                case 'T':
+                    values.Add(true);
+                    break;
+                case 'F':
+                    values.Add(false);
+                    break;
+            }
+        }
+
+        return values;
+    }
+
+    internal static bool TryParseKeyerCommand(string address, IReadOnlyList<object> arguments, out KeyerDestination destination, out bool? keyOn, out double? opacity, out bool runAuto)
+    {
+        destination = KeyerDestination.Usk1;
+        keyOn = null;
+        opacity = null;
+        runAuto = false;
+
+        var parts = address.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2 || !string.Equals(parts[0], "keyer", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!KeyerDestinationParser.TryParse(parts[1], out destination))
+        {
+            return false;
+        }
+
+        var action = parts.Length >= 3 ? parts[2].ToLowerInvariant() : "toggle";
+        switch (action)
+        {
+            case "on":
+                keyOn = true;
+                return true;
+            case "off":
+                keyOn = false;
+                return true;
+            case "toggle":
+                return true;
+            case "auto":
+                runAuto = true;
+                return true;
+            case "opacity":
+            case "fader":
+                opacity = arguments.FirstOrDefault() switch
+                {
+                    float value => value,
+                    int value => value / 100.0,
+                    _ => null
+                };
+                return opacity.HasValue;
+            default:
+                return false;
+        }
+    }
+
+    internal static bool TryParseTallyCommand(string address, IReadOnlyList<object> arguments, IPEndPoint remoteEndPoint, out TallySignal signal)
+    {
+        signal = new TallySignal();
+        var parts = address.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0 || !string.Equals(parts[0], "tally", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var source = parts.Length > 1 ? parts[1] : "osc";
+        var program = arguments.FirstOrDefault() switch
+        {
+            true => true,
+            false => false,
+            int value => value != 0,
+            float value => value > 0.5f,
+            _ => false
+        };
+
+        signal = new TallySignal
+        {
+            Source = source,
+            RemoteIpAddress = remoteEndPoint.Address.ToString(),
+            Transport = "osc",
+            Program = program,
+            Preview = !program && parts.Length > 2 && string.Equals(parts[2], "preview", StringComparison.OrdinalIgnoreCase),
+            ReceivedAt = DateTimeOffset.UtcNow
+        };
+
         return true;
     }
 
@@ -257,6 +429,12 @@ public class OscService : IOscService
             default:
                 return false;
         }
+    }
+
+    private static int AlignOscOffset(int value)
+    {
+        var remainder = value % 4;
+        return remainder == 0 ? value : value + (4 - remainder);
     }
 
     private static byte[] PadOscString(byte[] value)

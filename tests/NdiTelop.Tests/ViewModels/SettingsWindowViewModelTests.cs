@@ -109,6 +109,40 @@ public class SettingsWindowViewModelTests
         Assert.False(settings.LogViewer.AutoScroll);
     }
 
+    [Fact]
+    public async Task SaveAsync_ShouldPersistRemoteControlSettings()
+    {
+        var settings = new AppSettings();
+        var settingsService = Substitute.For<ISettingsService>();
+        settingsService.Settings.Returns(settings);
+
+        var vm = new SettingsWindowViewModel(settingsService)
+        {
+            WebApiHost = "127.0.0.1",
+            WebApiPort = 5010,
+            OscPort = 8010,
+            OscFeedbackHost = "192.168.0.50",
+            OscFeedbackPort = 8110,
+            EnableTallyAutoTake = true,
+            TallyPartnerIpAddress = "192.168.0.1",
+            TallyPartnerName = "ATEM Mini",
+            TallyAutoTakeKeyer = KeyerDestination.Dsk2,
+            AcceptNdiMetadataTally = false
+        };
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal("127.0.0.1", settings.RemoteControl.WebApiHost);
+        Assert.Equal(5010, settings.RemoteControl.WebApiPort);
+        Assert.Equal(8010, settings.RemoteControl.OscPort);
+        Assert.Equal("192.168.0.50", settings.RemoteControl.OscFeedbackHost);
+        Assert.Equal(8110, settings.RemoteControl.OscFeedbackPort);
+        Assert.True(settings.RemoteControl.EnableTallyAutoTake);
+        Assert.Equal("ATEM Mini", settings.RemoteControl.TallyPartnerName);
+        Assert.Equal(KeyerDestination.Dsk2, settings.RemoteControl.TallyAutoTakeKeyer);
+        Assert.False(settings.RemoteControl.AcceptNdiMetadataTally);
+    }
+
 
 
     [Fact]

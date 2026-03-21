@@ -24,10 +24,34 @@ public partial class SettingsWindowViewModel : ObservableObject
     private NdiConfig _ndiConfig = new();
 
     [ObservableProperty]
+    private string _webApiHost = "*";
+
+    [ObservableProperty]
     private int _webApiPort;
 
     [ObservableProperty]
     private int _oscPort;
+
+    [ObservableProperty]
+    private string _oscFeedbackHost = "127.0.0.1";
+
+    [ObservableProperty]
+    private int _oscFeedbackPort = 8000;
+
+    [ObservableProperty]
+    private bool _enableTallyAutoTake;
+
+    [ObservableProperty]
+    private string _tallyPartnerIpAddress = string.Empty;
+
+    [ObservableProperty]
+    private string _tallyPartnerName = string.Empty;
+
+    [ObservableProperty]
+    private KeyerDestination _tallyAutoTakeKeyer = KeyerDestination.Usk1;
+
+    [ObservableProperty]
+    private bool _acceptNdiMetadataTally = true;
 
     [ObservableProperty]
     private string _assetPath = string.Empty;
@@ -88,6 +112,7 @@ public partial class SettingsWindowViewModel : ObservableObject
     private bool _autoScrollLogs = true;
 
     public ObservableCollection<HotkeyBindingDisplayItem> HotkeyBindings { get; } = new();
+    public IReadOnlyList<KeyerDestination> AvailableKeyers { get; } = KeyerDefinitions.OrderedDestinations;
 
     public IReadOnlyList<string> AvailableDeckLinkDevices => _outputService?.GetAvailableDeckLinkDevices() ?? [];
 
@@ -114,8 +139,16 @@ public partial class SettingsWindowViewModel : ObservableObject
         {
             await _settingsService.LoadAsync();
             NdiConfig = CloneNdiConfig(_settingsService.Settings.Ndi);
-            WebApiPort = _settingsService.Settings.WebApiPort;
-            OscPort = _settingsService.Settings.OscPort;
+            WebApiHost = _settingsService.Settings.RemoteControl.WebApiHost;
+            WebApiPort = _settingsService.Settings.RemoteControl.WebApiPort;
+            OscPort = _settingsService.Settings.RemoteControl.OscPort;
+            OscFeedbackHost = _settingsService.Settings.RemoteControl.OscFeedbackHost;
+            OscFeedbackPort = _settingsService.Settings.RemoteControl.OscFeedbackPort;
+            EnableTallyAutoTake = _settingsService.Settings.RemoteControl.EnableTallyAutoTake;
+            TallyPartnerIpAddress = _settingsService.Settings.RemoteControl.TallyPartnerIpAddress;
+            TallyPartnerName = _settingsService.Settings.RemoteControl.TallyPartnerName;
+            TallyAutoTakeKeyer = _settingsService.Settings.RemoteControl.TallyAutoTakeKeyer;
+            AcceptNdiMetadataTally = _settingsService.Settings.RemoteControl.AcceptNdiMetadataTally;
             AssetPath = _settingsService.Settings.AssetPath;
             Preset1Hotkey = _settingsService.Settings.Hotkeys.Preset1;
             Preset2Hotkey = _settingsService.Settings.Hotkeys.Preset2;
@@ -210,8 +243,16 @@ public partial class SettingsWindowViewModel : ObservableObject
         try
         {
             _settingsService.Settings.Ndi = CloneNdiConfig(NdiConfig);
-            _settingsService.Settings.WebApiPort = WebApiPort;
-            _settingsService.Settings.OscPort = OscPort;
+            _settingsService.Settings.RemoteControl.WebApiHost = WebApiHost;
+            _settingsService.Settings.RemoteControl.WebApiPort = WebApiPort;
+            _settingsService.Settings.RemoteControl.OscPort = OscPort;
+            _settingsService.Settings.RemoteControl.OscFeedbackHost = OscFeedbackHost;
+            _settingsService.Settings.RemoteControl.OscFeedbackPort = OscFeedbackPort;
+            _settingsService.Settings.RemoteControl.EnableTallyAutoTake = EnableTallyAutoTake;
+            _settingsService.Settings.RemoteControl.TallyPartnerIpAddress = TallyPartnerIpAddress;
+            _settingsService.Settings.RemoteControl.TallyPartnerName = TallyPartnerName;
+            _settingsService.Settings.RemoteControl.TallyAutoTakeKeyer = TallyAutoTakeKeyer;
+            _settingsService.Settings.RemoteControl.AcceptNdiMetadataTally = AcceptNdiMetadataTally;
             _settingsService.Settings.AssetPath = AssetPath;
             _settingsService.Settings.Hotkeys.Preset1 = Preset1Hotkey;
             _settingsService.Settings.Hotkeys.Preset2 = Preset2Hotkey;
