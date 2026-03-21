@@ -4,6 +4,7 @@ using System.Text.Json;
 using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using NdiTelop.Services.WebUi;
+using Serilog;
 
 namespace NdiTelop.Services;
 
@@ -34,12 +35,26 @@ public class WebApiService : IWebApiService
             return Task.CompletedTask;
         }
 
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://{Host}:{Port}/");
-        _listener.Start();
+        try
+        {
+            _listener = new HttpListener();
+            _listener.Prefixes.Add($"http://{Host}:{Port}/");
+            _listener.Start();
 
-        _cts = new CancellationTokenSource();
-        _serverTask = RunServerAsync(_cts.Token);
+            _cts = new CancellationTokenSource();
+            _serverTask = RunServerAsync(_cts.Token);
+            Log.Information("Web API listener started. Host={Host}, Port={Port}", Host, Port);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Web API listener failed to start. Host={Host}, Port={Port}", Host, Port);
+            _listener?.Close();
+            _listener = null;
+            _cts?.Dispose();
+            _cts = null;
+            _serverTask = null;
+        }
+
         return Task.CompletedTask;
     }
 
@@ -74,6 +89,7 @@ public class WebApiService : IWebApiService
         _cts.Dispose();
         _cts = null;
         _serverTask = null;
+        Log.Information("Web API listener stopped.");
     }
 
     private async Task RunServerAsync(CancellationToken cancellationToken)
@@ -99,7 +115,20 @@ public class WebApiService : IWebApiService
                 break;
             }
 
-            _ = Task.Run(() => HandleRequestAsync(context), cancellationToken);
+            _ = Task.Run(() => HandleRequestSafeAsync(context), CancellationToken.None);
+        }
+    }
+
+    private async Task HandleRequestSafeAsync(HttpListenerContext context)
+    {
+        try
+        {
+            await HandleRequestAsync(context);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Unhandled Web API request failure. Path={Path}", context.Request.Url?.AbsolutePath);
+            await TryWriteErrorResponseAsync(context.Response, HttpStatusCode.InternalServerError, new { message = "Internal server error." });
         }
     }
 
@@ -295,12 +324,38 @@ public class WebApiService : IWebApiService
 
             await WriteJsonAsync(context.Response, HttpStatusCode.NotFound, new { message = "Not found." });
         }
-        catch
+        catch (JsonException ex)
         {
-            if (context.Response.OutputStream.CanWrite)
+            Log.Warning(ex, "Web API request JSON was invalid. Path={Path}", context.Request.Url?.AbsolutePath);
+            await TryWriteErrorResponseAsync(context.Response, HttpStatusCode.BadRequest, new { message = "Request payload is invalid." });
+        }
+        catch (HttpListenerException ex)
+        {
+            Log.Warning(ex, "Web API response channel closed unexpectedly. Path={Path}", context.Request.Url?.AbsolutePath);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            Log.Warning(ex, "Web API response disposed before completion. Path={Path}", context.Request.Url?.AbsolutePath);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Web API request failed. Path={Path}", context.Request.Url?.AbsolutePath);
+            await TryWriteErrorResponseAsync(context.Response, HttpStatusCode.InternalServerError, new { message = "Internal server error." });
+        }
+    }
+
+    private async Task TryWriteErrorResponseAsync(HttpListenerResponse response, HttpStatusCode statusCode, object payload)
+    {
+        try
+        {
+            if (response.OutputStream.CanWrite)
             {
-                await WriteJsonAsync(context.Response, HttpStatusCode.InternalServerError, new { message = "Internal server error." });
+                await WriteJsonAsync(response, statusCode, payload);
             }
+        }
+        catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException)
+        {
+            Log.Warning(ex, "Skipped error response because the HTTP client disconnected.");
         }
     }
 

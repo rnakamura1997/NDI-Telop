@@ -35,8 +35,16 @@ public class ExternalControlCoordinator
             return false;
         }
 
-        await ShowPresetHandler.Invoke(preset);
-        return true;
+        try
+        {
+            await ShowPresetHandler.Invoke(preset);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "External preset activation failed. PresetId={PresetId}", presetId);
+            return false;
+        }
     }
 
     public async Task<bool> TakePresetByIdAsync(string presetId)
@@ -49,14 +57,30 @@ public class ExternalControlCoordinator
 
         if (TakePresetHandler != null)
         {
-            await TakePresetHandler.Invoke(preset);
-            return true;
+            try
+            {
+                await TakePresetHandler.Invoke(preset);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "External TAKE failed. PresetId={PresetId}", presetId);
+                return false;
+            }
         }
 
         if (ShowPresetHandler != null)
         {
-            await ShowPresetHandler.Invoke(preset);
-            return true;
+            try
+            {
+                await ShowPresetHandler.Invoke(preset);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "External TAKE fallback show failed. PresetId={PresetId}", presetId);
+                return false;
+            }
         }
 
         return false;
@@ -69,8 +93,16 @@ public class ExternalControlCoordinator
             return false;
         }
 
-        await ClearProgramHandler.Invoke();
-        return true;
+        try
+        {
+            await ClearProgramHandler.Invoke();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "External clear program failed.");
+            return false;
+        }
     }
 
 
@@ -81,8 +113,16 @@ public class ExternalControlCoordinator
             return false;
         }
 
-        await NextCueHandler.Invoke();
-        return true;
+        try
+        {
+            await NextCueHandler.Invoke();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "External next cue failed.");
+            return false;
+        }
     }
 
     public PlaylistStatusSnapshot GetPlaylistSnapshot() => GetPlaylistSnapshotHandler?.Invoke() ?? new PlaylistStatusSnapshot();
@@ -100,7 +140,15 @@ public class ExternalControlCoordinator
             return false;
         }
 
-        return await SetKeyerStateHandler.Invoke(destination, keyOn, opacity);
+        try
+        {
+            return await SetKeyerStateHandler.Invoke(destination, keyOn, opacity);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "External keyer update failed. Destination={Destination}", destination);
+            return false;
+        }
     }
 
     public async Task<bool> RunKeyerAutoAsync(KeyerDestination destination)
@@ -110,7 +158,15 @@ public class ExternalControlCoordinator
             return false;
         }
 
-        return await RunKeyerAutoHandler.Invoke(destination);
+        try
+        {
+            return await RunKeyerAutoHandler.Invoke(destination);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "External keyer AUTO failed. Destination={Destination}", destination);
+            return false;
+        }
     }
 
     public async Task<bool> ApplyTallySignalAsync(TallySignal signal)

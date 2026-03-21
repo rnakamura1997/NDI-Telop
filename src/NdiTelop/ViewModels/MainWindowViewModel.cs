@@ -16,6 +16,7 @@ using Serilog;
 using Serilog.Events;
 using System.IO;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace NdiTelop.ViewModels;
 
@@ -554,6 +555,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            Log.Warning(ex, "External data refresh failed. TextBlock={TextBlockName}, Source={Source}", block.Name, block.DataSource.Source);
             await RunOnUiThreadAsync(() =>
             {
                 block.DataSource.LastStatus = $"Error: {ex.Message}";
@@ -690,6 +692,8 @@ public partial class MainWindowViewModel : ObservableObject
     private Preset? _transitionToPreset;
     private float _transitionProgress;
     private readonly Dictionary<KeyerDestination, KeyerTransitionState> _activeKeyerTransitions = [];
+    private readonly Stopwatch _transitionStopwatch = Stopwatch.StartNew();
+    private TimeSpan _lastTransitionElapsed;
 
     public IReadOnlyList<Preset> Presets => _presetService.Presets;
 
@@ -1996,8 +2000,12 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void TransitionTimer_Tick(object? sender, EventArgs e)
     {
-        var hasProgramTransition = AdvanceProgramTransition();
-        var hasKeyerTransitions = AdvanceKeyerTransitions();
+        var elapsed = _transitionStopwatch.Elapsed;
+        var deltaSeconds = Math.Max(0.001f, (float)(elapsed - _lastTransitionElapsed).TotalSeconds);
+        _lastTransitionElapsed = elapsed;
+
+        var hasProgramTransition = AdvanceProgramTransition(deltaSeconds);
+        var hasKeyerTransitions = AdvanceKeyerTransitions(deltaSeconds);
 
         if (!hasProgramTransition && !hasKeyerTransitions)
         {
@@ -2007,7 +2015,7 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPreset));
     }
 
-    private bool AdvanceProgramTransition()
+    private bool AdvanceProgramTransition(float deltaSeconds)
     {
         if (_transitionFromPreset == null || _transitionToPreset == null)
         {
@@ -2015,7 +2023,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         var durationSeconds = Math.Max(0.01f, _transitionToPreset.Animation?.SpeedSeconds ?? 0.3f);
-        _transitionProgress += (float)(0.016 / durationSeconds);
+        _transitionProgress += deltaSeconds / durationSeconds;
 
         if (_transitionProgress >= 1f)
         {
@@ -2028,7 +2036,7 @@ public partial class MainWindowViewModel : ObservableObject
         return true;
     }
 
-    private bool AdvanceKeyerTransitions()
+    private bool AdvanceKeyerTransitions(float deltaSeconds)
     {
         if (_activeKeyerTransitions.Count == 0)
         {
@@ -2039,7 +2047,7 @@ public partial class MainWindowViewModel : ObservableObject
         foreach (var pair in _activeKeyerTransitions)
         {
             var durationSeconds = Math.Max(0.01f, pair.Value.Config?.SpeedSeconds ?? 0.3f);
-            pair.Value.Progress = Math.Clamp(pair.Value.Progress + (float)(0.016 / durationSeconds), 0f, 1f);
+            pair.Value.Progress = Math.Clamp(pair.Value.Progress + (deltaSeconds / durationSeconds), 0f, 1f);
             if (pair.Value.Progress >= 1f)
             {
                 completed.Add(pair.Key);
@@ -2076,6 +2084,7 @@ public partial class MainWindowViewModel : ObservableObject
             _transitionTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, TransitionTimer_Tick);
         }
 
+        _lastTransitionElapsed = _transitionStopwatch.Elapsed;
         if (!_transitionTimer.IsEnabled)
         {
             _transitionTimer.Start();
@@ -2224,15 +2233,21 @@ public partial class MainWindowViewModel : ObservableObject
     private async void NdiSendTimer_Tick(object? sender, EventArgs e)
     {
         if (!_ndiService.IsInitialized) return;
+        if (!IsProgramActive && !IsPreviewActive) return;
 
+        SKBitmap? sharedProgramBitmap = null;
         try
         {
             if (CurrentProgramPreset != null)
             {
-                if (_transitionFromPreset != null && _transitionToPreset != null)
+                if (!IsProgramActive)
                 {
-                    using var programBitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
-                    await _ndiService.SendFrameAsync(NdiChannelType.Program, programBitmap);
+                    sharedProgramBitmap = null;
+                }
+                else if (_transitionFromPreset != null && _transitionToPreset != null)
+                {
+                    sharedProgramBitmap = _renderService.RenderTransition(_transitionFromPreset, _transitionToPreset, _transitionProgress, _transitionToPreset.Animation, NdiConfig);
+                    await _ndiService.SendFrameAsync(NdiChannelType.Program, sharedProgramBitmap);
                 }
                 else if (_ndiService is NdiService concreteNdiService)
                 {
@@ -2240,15 +2255,19 @@ public partial class MainWindowViewModel : ObservableObject
                 }
                 else
                 {
-                    using var programBitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, null, _activeKeyerTransitions);
-                    await _ndiService.SendFrameAsync(NdiChannelType.Program, programBitmap);
+                    sharedProgramBitmap = _renderService.Render(CurrentProgramPreset, NdiConfig.ResolutionWidth, NdiConfig.ResolutionHeight, null, _activeKeyerTransitions);
+                    await _ndiService.SendFrameAsync(NdiChannelType.Program, sharedProgramBitmap);
                 }
             }
 
-            if (CurrentPreviewPreset != null)
+            if (CurrentPreviewPreset != null && IsPreviewActive)
             {
                 var previewTransitions = ReferenceEquals(CurrentPreviewPreset, CurrentProgramPreset) ? _activeKeyerTransitions : null;
-                if (_ndiService is NdiService concreteNdiPreviewService)
+                if (sharedProgramBitmap != null && ReferenceEquals(CurrentPreviewPreset, CurrentProgramPreset) && previewTransitions == _activeKeyerTransitions)
+                {
+                    await _ndiService.SendFrameAsync(NdiChannelType.Preview, sharedProgramBitmap);
+                }
+                else if (_ndiService is NdiService concreteNdiPreviewService)
                 {
                     await concreteNdiPreviewService.SendRenderedFrameAsync(NdiChannelType.Preview, _renderService, CurrentPreviewPreset, NdiConfig, previewTransitions);
                 }
@@ -2266,6 +2285,10 @@ public partial class MainWindowViewModel : ObservableObject
             Log.Error(ex, "Failed sending NDI frame.");
             RefreshNdiOutputStatus("送信エラー");
             _ndiSendTimer.Stop();
+        }
+        finally
+        {
+            sharedProgramBitmap?.Dispose();
         }
     }
 

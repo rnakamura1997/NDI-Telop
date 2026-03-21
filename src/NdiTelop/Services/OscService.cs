@@ -52,7 +52,8 @@ public class OscService : IOscService
             _cts = null;
             _udpClient?.Dispose();
             _udpClient = null;
-            throw;
+            _listenerTask = null;
+            return Task.CompletedTask;
         }
     }
 
@@ -131,47 +132,64 @@ public class OscService : IOscService
             {
                 break;
             }
-
-            var address = ExtractOscAddress(received.Buffer);
-            if (string.IsNullOrWhiteSpace(address))
+            catch (SocketException ex)
             {
-                continue;
-            }
-
-            var arguments = ExtractOscArguments(received.Buffer);
-
-            if (TryGetPresetId(address, out var presetId))
-            {
-                await _coordinator.ShowPresetByIdAsync(presetId);
-                continue;
-            }
-
-            if (string.Equals(address, "/take", StringComparison.OrdinalIgnoreCase))
-            {
-                var requestedId = arguments.OfType<string>().FirstOrDefault();
-                if (!string.IsNullOrWhiteSpace(requestedId))
+                Log.Warning(ex, "OSC receive loop interrupted. Port={Port}", ReceivePort);
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    await _coordinator.TakePresetByIdAsync(requestedId);
+                    break;
                 }
 
                 continue;
             }
 
-            if (TryParseKeyerCommand(address, arguments, out var destination, out var keyOn, out var opacity, out var runAuto))
+            try
             {
-                if (runAuto)
+                var address = ExtractOscAddress(received.Buffer);
+                if (string.IsNullOrWhiteSpace(address))
                 {
-                    await _coordinator.RunKeyerAutoAsync(destination);
+                    continue;
                 }
-                else
+
+                var arguments = ExtractOscArguments(received.Buffer);
+
+                if (TryGetPresetId(address, out var presetId))
                 {
-                    await _coordinator.SetKeyerStateAsync(destination, keyOn, opacity);
+                    await _coordinator.ShowPresetByIdAsync(presetId);
+                    continue;
+                }
+
+                if (string.Equals(address, "/take", StringComparison.OrdinalIgnoreCase))
+                {
+                    var requestedId = arguments.OfType<string>().FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(requestedId))
+                    {
+                        await _coordinator.TakePresetByIdAsync(requestedId);
+                    }
+
+                    continue;
+                }
+
+                if (TryParseKeyerCommand(address, arguments, out var destination, out var keyOn, out var opacity, out var runAuto))
+                {
+                    if (runAuto)
+                    {
+                        await _coordinator.RunKeyerAutoAsync(destination);
+                    }
+                    else
+                    {
+                        await _coordinator.SetKeyerStateAsync(destination, keyOn, opacity);
+                    }
+                }
+
+                if (TryParseTallyCommand(address, arguments, received.RemoteEndPoint, out var signal))
+                {
+                    await _coordinator.ApplyTallySignalAsync(signal);
                 }
             }
-
-            if (TryParseTallyCommand(address, arguments, received.RemoteEndPoint, out var signal))
+            catch (Exception ex)
             {
-                await _coordinator.ApplyTallySignalAsync(signal);
+                Log.Error(ex, "OSC packet processing failed. Remote={RemoteAddress}", received.RemoteEndPoint);
             }
         }
     }

@@ -1,8 +1,111 @@
 [
-  { "name": "アーティスト名" },
-  { "name": "曲名" },
-  { "name": "イベント名" },
-  { "name": "MC テロップ" },
-  { "name": "カウントダウン" },
-  { "name": "透明カット" }
+  {
+    "Id": "news-opening",
+    "SortOrder": 0,
+    "Name": "News / Breaking Lower Third",
+    "Background": { "Type": "transparent", "Color": "#000000", "Alpha": 0.0, "AssetPath": "" },
+    "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.3, "Easing": "Linear" },
+    "AutoClearSeconds": 0,
+    "UskKeyers": [
+      { "Destination": 0, "Name": "USK1", "KeyOn": true, "Opacity": 1.0, "Priority": 1, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.25, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Headline", "DestinationKeyer": 0, "TextLines": [ { "Text": "BREAKING NEWS", "FontFamily": "Meiryo", "FontSize": 70, "Color": "#FDE047" }, { "Text": "{{headline}}", "FontFamily": "Meiryo", "FontSize": 48, "Color": "#FFFFFF" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 54, "Color": "#FFFFFF", "OutlineThickness": 3, "OutlineColor": "#0F172A", "ShadowOffsetX": 4, "ShadowOffsetY": 4, "ShadowBlur": 2, "ShadowColor": "#88000000" }, "TextLayout": { "HorizontalAlignment": 0, "VerticalAlignment": 2, "OffsetX": 64, "OffsetY": -72 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 1, "Name": "USK2", "KeyOn": false, "Opacity": 1.0, "Priority": 2, "Animation": { "InType": "slide", "OutType": "slide", "SpeedSeconds": 0.35, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Reporter", "DestinationKeyer": 1, "TextLines": [ { "Text": "LIVE / {{location}}", "FontFamily": "Meiryo", "FontSize": 30, "Color": "#E2E8F0" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 30, "Color": "#E2E8F0", "OutlineThickness": 2, "OutlineColor": "#020617", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 0, "VerticalAlignment": 2, "OffsetX": 70, "OffsetY": -24 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 2, "Name": "USK3", "KeyOn": false, "Opacity": 1.0, "Priority": 3, "Animation": { "InType": "wipe", "OutType": "wipe", "SpeedSeconds": 0.25, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 3, "Name": "USK4", "KeyOn": false, "Opacity": 1.0, "Priority": 4, "Animation": { "InType": "cut", "OutType": "cut", "SpeedSeconds": 0.1, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] }
+    ],
+    "DskKeyers": [
+      { "Destination": 4, "Name": "DSK1", "KeyOn": false, "Opacity": 1.0, "Priority": 1, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Network Bug", "DestinationKeyer": 4, "TextLines": [ { "Text": "NDI NEWS", "FontFamily": "Meiryo", "FontSize": 24, "Color": "#FFFFFF" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 24, "Color": "#FFFFFF", "OutlineThickness": 2, "OutlineColor": "#111827", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#55000000" }, "TextLayout": { "HorizontalAlignment": 2, "VerticalAlignment": 0, "OffsetX": -36, "OffsetY": 24 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 5, "Name": "DSK2", "KeyOn": false, "Opacity": 1.0, "Priority": 2, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 6, "Name": "DSK3", "KeyOn": false, "Opacity": 1.0, "Priority": 3, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 7, "Name": "DSK4", "KeyOn": false, "Opacity": 1.0, "Priority": 4, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] }
+    ]
+  },
+  {
+    "Id": "sports-score",
+    "SortOrder": 1,
+    "Name": "Sports / Match Score",
+    "Background": { "Type": "transparent", "Color": "#000000", "Alpha": 0.0, "AssetPath": "" },
+    "Animation": { "InType": "slide", "OutType": "slide", "SpeedSeconds": 0.35, "Easing": "Linear" },
+    "AutoClearSeconds": 0,
+    "UskKeyers": [
+      { "Destination": 0, "Name": "USK1", "KeyOn": true, "Opacity": 1.0, "Priority": 1, "Animation": { "InType": "slide", "OutType": "slide", "SpeedSeconds": 0.35, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Score Header", "DestinationKeyer": 0, "TextLines": [ { "Text": "{{competition}}", "FontFamily": "Meiryo", "FontSize": 28, "Color": "#E2E8F0" }, { "Text": "{{home_team}}  {{home_score}} - {{away_score}}  {{away_team}}", "FontFamily": "Meiryo", "FontSize": 52, "Color": "#FFFFFF" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 40, "Color": "#FFFFFF", "OutlineThickness": 3, "OutlineColor": "#0F172A", "ShadowOffsetX": 3, "ShadowOffsetY": 3, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 1, "VerticalAlignment": 2, "OffsetX": 0, "OffsetY": -70 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 1, "Name": "USK2", "KeyOn": true, "Opacity": 1.0, "Priority": 2, "Animation": { "InType": "wipe-vertical", "OutType": "wipe-vertical", "SpeedSeconds": 0.25, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Match Clock", "DestinationKeyer": 1, "TextLines": [ { "Text": "{{period}} / {{clock}}", "FontFamily": "Meiryo", "FontSize": 26, "Color": "#F8FAFC" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 26, "Color": "#F8FAFC", "OutlineThickness": 2, "OutlineColor": "#0F172A", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 2, "VerticalAlignment": 2, "OffsetX": -72, "OffsetY": -30 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 2, "Name": "USK3", "KeyOn": false, "Opacity": 1.0, "Priority": 3, "Animation": { "InType": "zoom", "OutType": "zoom", "SpeedSeconds": 0.3, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Sponsor", "DestinationKeyer": 2, "TextLines": [ { "Text": "Presented by {{sponsor}}", "FontFamily": "Meiryo", "FontSize": 22, "Color": "#FCD34D" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 22, "Color": "#FCD34D", "OutlineThickness": 1, "OutlineColor": "#111827", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 0, "VerticalAlignment": 2, "OffsetX": 70, "OffsetY": -26 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 3, "Name": "USK4", "KeyOn": false, "Opacity": 1.0, "Priority": 4, "Animation": { "InType": "cut", "OutType": "cut", "SpeedSeconds": 0.1, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] }
+    ],
+    "DskKeyers": [
+      { "Destination": 4, "Name": "DSK1", "KeyOn": true, "Opacity": 1.0, "Priority": 1, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Clock Bug", "DestinationKeyer": 4, "TextLines": [ { "Text": "LIVE", "FontFamily": "Meiryo", "FontSize": 20, "Color": "#FFFFFF" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 20, "Color": "#FFFFFF", "OutlineThickness": 2, "OutlineColor": "#991B1B", "ShadowOffsetX": 1, "ShadowOffsetY": 1, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 2, "VerticalAlignment": 0, "OffsetX": -36, "OffsetY": 22 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 5, "Name": "DSK2", "KeyOn": false, "Opacity": 1.0, "Priority": 2, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 6, "Name": "DSK3", "KeyOn": false, "Opacity": 1.0, "Priority": 3, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 7, "Name": "DSK4", "KeyOn": false, "Opacity": 1.0, "Priority": 4, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] }
+    ]
+  },
+  {
+    "Id": "variety-talk",
+    "SortOrder": 2,
+    "Name": "Variety / Guest Talk",
+    "Background": { "Type": "transparent", "Color": "#000000", "Alpha": 0.0, "AssetPath": "" },
+    "Animation": { "InType": "zoom", "OutType": "zoom", "SpeedSeconds": 0.4, "Easing": "Linear" },
+    "AutoClearSeconds": 0,
+    "UskKeyers": [
+      { "Destination": 0, "Name": "USK1", "KeyOn": true, "Opacity": 1.0, "Priority": 1, "Animation": { "InType": "zoom", "OutType": "zoom", "SpeedSeconds": 0.4, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Guest Name", "DestinationKeyer": 0, "TextLines": [ { "Text": "{{guest_name}}", "FontFamily": "Meiryo", "FontSize": 58, "Color": "#FFFFFF" }, { "Text": "{{guest_title}}", "FontFamily": "Meiryo", "FontSize": 30, "Color": "#FBCFE8" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 44, "Color": "#FFFFFF", "OutlineThickness": 3, "OutlineColor": "#831843", "ShadowOffsetX": 4, "ShadowOffsetY": 4, "ShadowBlur": 2, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 0, "VerticalAlignment": 2, "OffsetX": 72, "OffsetY": -66 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 1, "Name": "USK2", "KeyOn": true, "Opacity": 1.0, "Priority": 2, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.3, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Talk Topic", "DestinationKeyer": 1, "TextLines": [ { "Text": "TOPIC: {{topic}}", "FontFamily": "Meiryo", "FontSize": 28, "Color": "#FDE68A" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 28, "Color": "#FDE68A", "OutlineThickness": 2, "OutlineColor": "#422006", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 0, "VerticalAlignment": 2, "OffsetX": 74, "OffsetY": -20 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 2, "Name": "USK3", "KeyOn": false, "Opacity": 1.0, "Priority": 3, "Animation": { "InType": "slide", "OutType": "slide", "SpeedSeconds": 0.25, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Hashtag", "DestinationKeyer": 2, "TextLines": [ { "Text": "#{{hashtag}}", "FontFamily": "Meiryo", "FontSize": 24, "Color": "#93C5FD" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 24, "Color": "#93C5FD", "OutlineThickness": 2, "OutlineColor": "#1E3A8A", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#55000000" }, "TextLayout": { "HorizontalAlignment": 2, "VerticalAlignment": 2, "OffsetX": -48, "OffsetY": -26 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 3, "Name": "USK4", "KeyOn": false, "Opacity": 1.0, "Priority": 4, "Animation": { "InType": "cut", "OutType": "cut", "SpeedSeconds": 0.1, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] }
+    ],
+    "DskKeyers": [
+      { "Destination": 4, "Name": "DSK1", "KeyOn": false, "Opacity": 1.0, "Priority": 1, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [
+        { "Name": "Show Logo", "DestinationKeyer": 4, "TextLines": [ { "Text": "VARIETY NIGHT", "FontFamily": "Meiryo", "FontSize": 22, "Color": "#FFFFFF" } ], "TextStyle": { "FontFamily": "Meiryo", "FontSize": 22, "Color": "#FFFFFF", "OutlineThickness": 2, "OutlineColor": "#7C3AED", "ShadowOffsetX": 2, "ShadowOffsetY": 2, "ShadowBlur": 1, "ShadowColor": "#66000000" }, "TextLayout": { "HorizontalAlignment": 2, "VerticalAlignment": 0, "OffsetX": -34, "OffsetY": 22 }, "DataSource": { "IsEnabled": false, "Source": "", "RefreshIntervalSeconds": 5, "LastStatus": "Not configured", "Fields": [] } }
+      ], "Overlays": [] },
+      { "Destination": 5, "Name": "DSK2", "KeyOn": false, "Opacity": 1.0, "Priority": 2, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 6, "Name": "DSK3", "KeyOn": false, "Opacity": 1.0, "Priority": 3, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] },
+      { "Destination": 7, "Name": "DSK4", "KeyOn": false, "Opacity": 1.0, "Priority": 4, "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" }, "TextBlocks": [], "Overlays": [] }
+    ]
+  },
+  {
+    "Id": "playlist-headline-stack",
+    "SortOrder": 3,
+    "Name": "News / Headline Stack",
+    "Background": { "Type": "transparent", "Color": "#000000", "Alpha": 0.0, "AssetPath": "" },
+    "Animation": { "InType": "wipe", "OutType": "wipe", "SpeedSeconds": 0.25, "Easing": "Linear" },
+    "AutoClearSeconds": 8,
+    "TextLines": [ { "Text": "{{headline}}", "FontFamily": "Meiryo", "FontSize": 40, "Color": "#FFFFFF" } ]
+  },
+  {
+    "Id": "clock-bug",
+    "SortOrder": 4,
+    "Name": "Utility / Clock Bug",
+    "Background": { "Type": "transparent", "Color": "#000000", "Alpha": 0.0, "AssetPath": "" },
+    "Animation": { "InType": "fade", "OutType": "fade", "SpeedSeconds": 0.2, "Easing": "Linear" },
+    "AutoClearSeconds": 0,
+    "TextLines": [ { "Text": "{{time}}", "FontFamily": "Meiryo", "FontSize": 22, "Color": "#FFFFFF" } ]
+  },
+  {
+    "Id": "transparent-cut",
+    "SortOrder": 5,
+    "Name": "Utility / Transparent Cut",
+    "Background": { "Type": "transparent", "Color": "#000000", "Alpha": 0.0, "AssetPath": "" },
+    "Animation": { "InType": "cut", "OutType": "cut", "SpeedSeconds": 0.1, "Easing": "Linear" },
+    "AutoClearSeconds": 0,
+    "TextLines": []
+  }
 ]
