@@ -1,6 +1,7 @@
 using NdiTelop.Interfaces;
 using NdiTelop.Models;
 using SkiaSharp;
+using System.Collections.Concurrent;
 using System.IO;
 using Serilog;
 
@@ -11,6 +12,8 @@ public class RenderService : IRenderService
     private readonly AssetService _assetService = new();
     private readonly ISettingsService? _settingsService;
     private readonly ExternalDataSourceService _externalDataSourceService;
+    private readonly ConcurrentDictionary<string, CachedBitmap> _bitmapCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<TextMeasureCacheKey, MeasuredTextLine> _textMeasureCache = new();
 
     public RenderService(ISettingsService? settingsService = null, ExternalDataSourceService? externalDataSourceService = null)
     {
@@ -134,7 +137,7 @@ public class RenderService : IRenderService
             var backgroundPath = ResolveAssetPath(bg.AssetPath);
             if (File.Exists(backgroundPath))
             {
-                using var image = SKBitmap.Decode(backgroundPath);
+                using var image = GetCachedBitmap(backgroundPath);
                 if (image != null)
                 {
                     canvas.DrawBitmap(image, new SKRect(0, 0, width, height));
@@ -279,38 +282,26 @@ public class RenderService : IRenderService
                 continue;
             }
 
-            SKBitmap? image = null;
-            try
+            using var image = GetCachedBitmap(resolvedPath);
+            if (image == null)
             {
-                image = SKBitmap.Decode(resolvedPath);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Overlay asset decode failed. Path={Path}", resolvedPath);
+                Log.Warning("Overlay decode returned null. Path={Path}", resolvedPath);
+                continue;
             }
 
-            using (image)
+            var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
+            if (opacity <= 0) continue;
+
+            using var paint = new SKPaint
             {
-                if (image == null)
-                {
-                    Log.Warning("Overlay decode returned null. Path={Path}", resolvedPath);
-                    continue;
-                }
+                Color = SKColors.White.WithAlpha((byte)(opacity * 255)),
+                BlendMode = SKBlendMode.SrcOver,
+                IsAntialias = true
+            };
 
-                var opacity = Math.Clamp(overlay.Opacity, 0.0, 1.0);
-                if (opacity <= 0) continue;
-
-                using var paint = new SKPaint
-                {
-                    Color = SKColors.White.WithAlpha((byte)(opacity * 255)),
-                    BlendMode = SKBlendMode.SrcOver,
-                    IsAntialias = true
-                };
-
-                var (drawWidth, drawHeight) = ResolveOverlaySize(overlay, image.Width, image.Height);
-                var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
-                canvas.DrawBitmap(image, destRect, paint);
-            }
+            var (drawWidth, drawHeight) = ResolveOverlaySize(overlay, image.Width, image.Height);
+            var destRect = new SKRect(overlay.X, overlay.Y, overlay.X + drawWidth, overlay.Y + drawHeight);
+            canvas.DrawBitmap(image, destRect, paint);
         }
     }
 
@@ -339,7 +330,7 @@ public class RenderService : IRenderService
         return (Math.Max(1, sourceWidth), Math.Max(1, sourceHeight));
     }
 
-    private static void DrawTextBlocks(SKCanvas canvas, IReadOnlyList<TextBlock> blocks, int width, int height, ExternalDataSourceService externalDataSourceService)
+    private void DrawTextBlocks(SKCanvas canvas, IReadOnlyList<TextBlock> blocks, int width, int height, ExternalDataSourceService externalDataSourceService)
     {
         foreach (var block in blocks)
         {
@@ -348,7 +339,7 @@ public class RenderService : IRenderService
         }
     }
 
-    private static void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, TextLayoutSettings? layout, int width, int height, IReadOnlyDictionary<string, string>? fieldValues, ExternalDataSourceService externalDataSourceService)
+    private void DrawTextLines(SKCanvas canvas, IReadOnlyList<TextLine> lines, TextStyleSettings? style, TextLayoutSettings? layout, int width, int height, IReadOnlyDictionary<string, string>? fieldValues, ExternalDataSourceService externalDataSourceService)
     {
         if (lines.Count == 0)
         {
@@ -362,12 +353,22 @@ public class RenderService : IRenderService
         {
             var fontFamily = GetEffectiveFontFamily(line, style);
             var fontSize = GetEffectiveFontSize(line, style);
-            using var typeface = SKTypeface.FromFamilyName(fontFamily) ?? SKTypeface.Default;
-            using var font = new SKFont(typeface, fontSize);
             var renderedText = externalDataSourceService.ApplyTemplate(line.Text, fieldValues);
-            font.MeasureText(renderedText, out var textBounds);
+            var cacheKey = new TextMeasureCacheKey(fontFamily, fontSize, renderedText);
+            if (!_textMeasureCache.TryGetValue(cacheKey, out var measuredLine))
+            {
+                using var typeface = SKTypeface.FromFamilyName(fontFamily) ?? SKTypeface.Default;
+                using var font = new SKFont(typeface, fontSize);
+                font.MeasureText(renderedText, out var textBounds);
+                measuredLine = new MeasuredTextLine(line, renderedText, fontFamily, fontSize, textBounds);
+                _textMeasureCache[cacheKey] = measuredLine;
+            }
+            else
+            {
+                measuredLine = measuredLine with { Line = line };
+            }
 
-            measuredLines.Add(new MeasuredTextLine(line, renderedText, fontFamily, fontSize, textBounds));
+            measuredLines.Add(measuredLine);
         }
 
         var totalTextHeight = measuredLines.Sum(line => line.Bounds.Height) + lineSpacing * Math.Max(0, measuredLines.Count - 1);
@@ -442,6 +443,43 @@ public class RenderService : IRenderService
         };
 
     private readonly record struct MeasuredTextLine(TextLine Line, string ResolvedText, string FontFamily, float FontSize, SKRect Bounds);
+
+    private readonly record struct TextMeasureCacheKey(string FontFamily, float FontSize, string Text);
+
+    private sealed record CachedBitmap(DateTime LastWriteUtc, SKBitmap Bitmap);
+
+
+    private SKBitmap? GetCachedBitmap(string resolvedPath)
+    {
+        try
+        {
+            var lastWriteUtc = File.GetLastWriteTimeUtc(resolvedPath);
+            if (_bitmapCache.TryGetValue(resolvedPath, out var cached) && cached.LastWriteUtc == lastWriteUtc)
+            {
+                return cached.Bitmap.Copy();
+            }
+
+            using var decoded = SKBitmap.Decode(resolvedPath);
+            if (decoded == null)
+            {
+                return null;
+            }
+
+            var persistent = decoded.Copy();
+            _bitmapCache.AddOrUpdate(resolvedPath, _ => new CachedBitmap(lastWriteUtc, persistent), (_, existing) =>
+            {
+                existing.Bitmap.Dispose();
+                return new CachedBitmap(lastWriteUtc, persistent);
+            });
+
+            return persistent.Copy();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Asset decode failed. Path={Path}", resolvedPath);
+            return null;
+        }
+    }
 
     private static string GetEffectiveFontFamily(TextLine line, TextStyleSettings? style)
         => !string.IsNullOrWhiteSpace(style?.FontFamily) ? style.FontFamily : line.FontFamily;

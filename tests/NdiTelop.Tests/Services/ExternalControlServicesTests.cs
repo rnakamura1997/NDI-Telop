@@ -319,6 +319,55 @@ public class ExternalControlServicesTests
     }
 
     [Fact]
+    public async Task WebApiService_ShouldReturnNotFound_WhenCoordinatorHandlerFails()
+    {
+        var preset = new Preset { Id = "preset-error", Name = "Broken Preset" };
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset> { preset });
+
+        var coordinator = new ExternalControlCoordinator(presetService);
+        coordinator.ShowPresetHandler = _ => throw new InvalidOperationException("boom");
+
+        var port = GetFreeTcpPort();
+        var webApiService = new WebApiService(coordinator)
+        {
+            Host = "127.0.0.1",
+            Port = port
+        };
+
+        await webApiService.StartAsync();
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            var response = await client.PostAsync("/api/presets/preset-error/activate", null);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+        finally
+        {
+            await webApiService.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task OscService_StartAsync_ShouldNotThrow_WhenPortIsAlreadyInUse()
+    {
+        var presetService = Substitute.For<IPresetService>();
+        presetService.Presets.Returns(new List<Preset>());
+        var coordinator = new ExternalControlCoordinator(presetService);
+        var port = GetFreeTcpPort();
+        using var occupied = new UdpClient(port);
+
+        var oscService = new OscService(coordinator)
+        {
+            ReceivePort = port
+        };
+
+        await oscService.StartAsync();
+        await oscService.StopAsync();
+    }
+
+    [Fact]
     public async Task WebApiService_ShouldReturnNotFound_ForUnknownUrl()
     {
         var presetService = Substitute.For<IPresetService>();
