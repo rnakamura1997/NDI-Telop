@@ -29,13 +29,54 @@ jobs:
     - name: Test
       run: dotnet test tests/NdiTelop.Tests/NdiTelop.Tests.csproj --no-build -c Release --verbosity normal
 
+    - name: Install NDI Runtime
+      shell: pwsh
+      run: |
+        winget install --id NDI.NDIRuntime --exact --accept-package-agreements --accept-source-agreements --silent
+
+        $runtimeCandidates = @(
+          "$env:ProgramFiles\NDI\NDI 6 Runtime\v6",
+          "$env:ProgramFiles\NDI\NDI 6 Runtime",
+          "$env:ProgramFiles\NewTek\NDI 5 Runtime\v5",
+          "$env:ProgramFiles\NewTek\NDI 5 Runtime",
+          "$env:ProgramFiles\NewTek\NDI 4 Runtime\v4",
+          "$env:ProgramFiles\NewTek\NDI 4 Runtime"
+        )
+
+        $runtimeDir = $runtimeCandidates |
+          Where-Object { Test-Path (Join-Path $_ 'Processing.NDI.Lib.x64.dll') } |
+          Select-Object -First 1
+
+        if (-not $runtimeDir) {
+          throw 'Processing.NDI.Lib.x64.dll was not found after installing the NDI runtime.'
+        }
+
+        "NDI_RUNTIME_DIR=$runtimeDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
     - name: Publish Windows x64
+      shell: pwsh
       run: |
         dotnet publish src/NdiTelop/NdiTelop.csproj `
           -c Release -r win-x64 `
           --self-contained true `
-          -p:PublishSingleFile=true `
+          -p:NdiRuntimeDir="$env:NDI_RUNTIME_DIR" `
           -o ./publish/win-x64
+
+    - name: Verify published Windows payload
+      shell: pwsh
+      run: |
+        $requiredFiles = @(
+          'publish/win-x64/NdiTelop.exe',
+          'publish/win-x64/NDILibDotNetCoreBase.dll',
+          'publish/win-x64/Processing.NDI.Lib.x64.dll',
+          'publish/win-x64/Assets/DefaultPresets/default_presets.json'
+        )
+
+        foreach ($file in $requiredFiles) {
+          if (-not (Test-Path $file)) {
+            throw "Required publish output was not found: $file"
+          }
+        }
 
     - name: Install Inno Setup
       run: choco install innosetup -y
