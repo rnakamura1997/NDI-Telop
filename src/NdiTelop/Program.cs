@@ -25,6 +25,10 @@ public static class Program
             Services = ConfigureServices();
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
+        catch (PlatformNotSupportedException ex)
+        {
+            Log.Fatal(ex, "Avalonia desktop lifetime is not supported on the current platform/environment.");
+        }
         catch (Exception ex)
         {
             Log.Fatal(ex, "Application terminated unexpectedly during startup.");
@@ -40,6 +44,7 @@ public static class Program
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            .LogToTrace()
             .UseReactiveUI();
 
     private static IServiceProvider ConfigureServices()
@@ -47,11 +52,7 @@ public static class Program
         var services = new ServiceCollection();
         RegisterServices(services);
 
-        var serviceProvider = services.BuildServiceProvider();
-
-        InitializeExternalControlServices(serviceProvider);
-
-        return serviceProvider;
+        return services.BuildServiceProvider();
     }
 
     private static void RegisterServices(IServiceCollection services)
@@ -63,6 +64,7 @@ public static class Program
         services.AddSingleton<SettingsWindowViewModel>();
         services.AddSingleton<PresetEditorViewModel>();
 
+        services.AddSingleton<ApplicationStartupService>();
         services.AddSingleton<ExternalDataSourceService>();
         services.AddSingleton<INdiService, NdiService>();
         services.AddSingleton<RenderService>();
@@ -82,60 +84,5 @@ public static class Program
         services.AddSingleton<ISettingsService>(provider => provider.GetRequiredService<SettingsService>());
         services.AddSingleton<BackupArchiveService>();
         services.AddSingleton<ThemeService>();
-    }
-
-    private static void InitializeExternalControlServices(IServiceProvider services)
-    {
-        var settingsService = services.GetRequiredService<ISettingsService>();
-        settingsService.LoadAsync().GetAwaiter().GetResult();
-
-        var presetService = services.GetRequiredService<IPresetService>();
-        presetService.LoadPresetsAsync().GetAwaiter().GetResult();
-
-        var hotkeyService = services.GetRequiredService<HotkeyService>();
-        hotkeyService.ApplySettings(settingsService.Settings.Hotkeys);
-
-        try
-        {
-            var oscService = services.GetRequiredService<IOscService>();
-            oscService.ReceivePort = settingsService.Settings.RemoteControl.OscPort;
-            if (oscService is OscService concreteOsc)
-            {
-                concreteOsc.FeedbackHost = settingsService.Settings.RemoteControl.OscFeedbackHost;
-                concreteOsc.FeedbackPort = settingsService.Settings.RemoteControl.OscFeedbackPort;
-            }
-            oscService.StartAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "OSC initialization failed (port: {Port}).", settingsService.Settings.RemoteControl.OscPort);
-        }
-
-        try
-        {
-            var webApiService = services.GetRequiredService<IWebApiService>();
-            if (webApiService is WebApiService concreteWebApi)
-            {
-                concreteWebApi.Host = settingsService.Settings.RemoteControl.WebApiHost;
-            }
-
-            webApiService.Port = settingsService.Settings.RemoteControl.WebApiPort;
-            webApiService.StartAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Web API initialization failed (port: {Port}).", settingsService.Settings.RemoteControl.WebApiPort);
-        }
-
-
-        try
-        {
-            var outputService = services.GetRequiredService<IOutputService>();
-            outputService.ApplySettingsAsync(settingsService.Settings.Output).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Output backend initialization failed.");
-        }
     }
 }
