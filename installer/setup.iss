@@ -9,7 +9,7 @@ OutputBaseFilename=NdiTelop-Setup-v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
-SetupIconFile=src\NdiTelop\Assets\icon.ico
+SetupIconFile=..\src\NdiTelop\Assets\icon.ico
 
 [Languages]
 Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
