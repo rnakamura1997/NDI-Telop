@@ -22,8 +22,10 @@ public class ProgramServiceRegistrationTests
         var renderService = provider.GetRequiredService<RenderService>();
         var renderServiceFromInterface = provider.GetRequiredService<IRenderService>();
         var viewModel = provider.GetRequiredService<MainWindowViewModel>();
+        var startupService = provider.GetRequiredService<ApplicationStartupService>();
 
         Assert.Same(renderService, renderServiceFromInterface);
         Assert.NotNull(viewModel);
+        Assert.NotNull(startupService);
     }
 }
