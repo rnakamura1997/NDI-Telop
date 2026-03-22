@@ -46,11 +46,14 @@ jobs:
         $tag = if ("${{ github.ref }}" -match "refs/tags/v(.+)") { $matches[1] } else { "0.0.0-dev" }
         echo "VERSION=$tag" >> $env:GITHUB_ENV
 
+    - name: Generate installer icon
+      run: python scripts/generate_icon.py
+
     - name: Build Installer
       run: |
-        Push-Location installer
+        Push-Location "$env:GITHUB_WORKSPACE/installer"
         try {
-          iscc /DMyAppVersion="${{ env.VERSION }}" setup.iss
+          iscc /DMyAppVersion="${{ env.VERSION }}" .\setup.iss
         }
         finally {
           Pop-Location
