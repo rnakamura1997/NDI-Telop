@@ -18,7 +18,7 @@
     <PackageReference Include="Avalonia.Skia" Version="11.3.12" />
     <PackageReference Include="NDILibDotNetCoreBase" Version="2024.7.22.1" />
     <PackageReference Include="OscCore" Version="*" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.2" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.2" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Serilog" Version="4.2.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
@@ -27,4 +27,36 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NDI\\NDI 6 Runtime\\v6\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NDI\NDI 6 Runtime\v6\</NdiRuntimeDir>
+    <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NDI\\NDI 6 Runtime\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NDI\NDI 6 Runtime\</NdiRuntimeDir>
+    <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NewTek\\NDI 5 Runtime\\v5\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NewTek\NDI 5 Runtime\v5\</NdiRuntimeDir>
+    <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NewTek\\NDI 5 Runtime\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NewTek\NDI 5 Runtime\</NdiRuntimeDir>
+    <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NewTek\\NDI 4 Runtime\\v4\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NewTek\NDI 4 Runtime\v4\</NdiRuntimeDir>
+    <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NewTek\\NDI 4 Runtime\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NewTek\NDI 4 Runtime\</NdiRuntimeDir>
+  </PropertyGroup>
+
+  <Target Name="CopyNdiRuntimeDependenciesToOutput" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(NdiRuntimeDir)' != ''">
+    <ItemGroup>
+      <NdiRuntimeNativeFiles Include="$(NdiRuntimeDir)*.dll" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(NdiRuntimeNativeFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyNdiRuntimeDependenciesToPublish" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(NdiRuntimeDir)' != ''">
+    <ItemGroup>
+      <NdiRuntimeNativeFiles Include="$(NdiRuntimeDir)*.dll" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(NdiRuntimeNativeFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
