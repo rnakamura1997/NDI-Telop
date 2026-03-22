@@ -1,3 +1,7 @@
+#define RepoRoot AddBackslash(SourcePath) + "..\\"
+#define PublishDir RepoRoot + "publish\\win-x64\\"
+#define AppIcon RepoRoot + "src\\NdiTelop\\Assets\\icon.ico"
+
 [Setup]
 AppName=NdiTelop
 AppVersion={#MyAppVersion}
@@ -9,7 +13,7 @@ OutputBaseFilename=NdiTelop-Setup-v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
-SetupIconFile=..\src\NdiTelop\Assets\icon.ico
+SetupIconFile={#AppIcon}
 
 [Languages]
 Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
@@ -18,7 +22,7 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "desktopicon"; Description: "デスクトップにアイコンを作成"; GroupDescription: "追加アイコン:"; Flags: unchecked
 
 [Files]
-Source: "..\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PublishDir}*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\NdiTelop"; Filename: "{app}\NdiTelop.exe"
