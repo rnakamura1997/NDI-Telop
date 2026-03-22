@@ -44,19 +44,11 @@
     <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NewTek\\NDI 4 Runtime\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NewTek\NDI 4 Runtime\</NdiRuntimeDir>
   </PropertyGroup>
 
-  <Target Name="CopyNdiRuntimeDependenciesToOutput" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(NdiRuntimeDir)' != ''">
-    <ItemGroup>
-      <NdiRuntimeNativeFiles Include="$(NdiRuntimeDir)*.dll" />
-    </ItemGroup>
-
-    <Copy SourceFiles="@(NdiRuntimeNativeFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
-  </Target>
-
-  <Target Name="CopyNdiRuntimeDependenciesToPublish" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(NdiRuntimeDir)' != ''">
-    <ItemGroup>
-      <NdiRuntimeNativeFiles Include="$(NdiRuntimeDir)*.dll" />
-    </ItemGroup>
-
-    <Copy SourceFiles="@(NdiRuntimeNativeFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
-  </Target>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(NdiRuntimeDir)' != ''">
+    <Content Include="$(NdiRuntimeDir)Processing.NDI.Lib*.dll">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
