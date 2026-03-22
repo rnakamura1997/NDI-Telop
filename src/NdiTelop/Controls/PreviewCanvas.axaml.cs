@@ -18,7 +18,7 @@ namespace NdiTelop.Controls;
 
 public partial class PreviewCanvas : UserControl
 {
-    private const string AssetDragDataFormat = "application/x-nditelop-asset-path";
+    private static readonly DataFormat<string> AssetDragDataFormat = DataFormat.CreateStringApplicationFormat("nditelop-asset-path");
     private const double HandleRadius = 5d;
     private const double HandleHitRadius = 10d;
     private static readonly Pen SelectionPen = new(new SolidColorBrush(Color.Parse("#00B7FF")), 2);
@@ -346,7 +346,7 @@ public partial class PreviewCanvas : UserControl
             return;
         }
 
-        var relativePath = e.Data.Get(AssetDragDataFormat) as string ?? e.Data.GetText();
+        var relativePath = e.DataTransfer.TryGetValue<string>(AssetDragDataFormat) ?? e.DataTransfer.TryGetText();
         if (string.IsNullOrWhiteSpace(relativePath))
         {
             return;
@@ -369,7 +369,7 @@ public partial class PreviewCanvas : UserControl
         InvalidateVisual();
     }
 
-    private static bool HasAssetData(DragEventArgs e) => e.Data.Contains(AssetDragDataFormat);
+    private static bool HasAssetData(DragEventArgs e) => e.DataTransfer.Contains(AssetDragDataFormat);
 
     private void BeginDrag(PointerPressedEventArgs e, Point point)
     {

@@ -157,8 +157,9 @@ public class AssetService : IDisposable
         using var borderPaint = new SKPaint { Color = new SKColor(80, 80, 80), IsStroke = true, StrokeWidth = 2, IsAntialias = true };
         canvas.DrawRect(new SKRect(1, 1, 159, 89), borderPaint);
 
-        using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true, TextSize = 16, TextAlign = SKTextAlign.Center };
-        canvas.DrawText(label.TrimStart('.').ToUpperInvariant(), 80, 50, textPaint);
+        using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
+        using var textFont = new SKFont { Size = 16 };
+        canvas.DrawText(label.TrimStart('.').ToUpperInvariant(), 80, 50, SKTextAlign.Center, textFont, textPaint);
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Png, 80);

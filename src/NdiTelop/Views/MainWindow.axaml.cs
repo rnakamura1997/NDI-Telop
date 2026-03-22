@@ -16,9 +16,9 @@ namespace NdiTelop.Views;
 
 public partial class MainWindow : Window
 {
-    private const string PresetDragDataFormat = "application/x-nditelop-preset-id";
-    private const string AssetDragDataFormat = "application/x-nditelop-asset-path";
-    private const string PlaylistDragDataFormat = "application/x-nditelop-playlist-preset-id";
+    private static readonly DataFormat<string> PresetDragDataFormat = DataFormat.CreateStringApplicationFormat("nditelop-preset-id");
+    private static readonly DataFormat<string> AssetDragDataFormat = DataFormat.CreateStringApplicationFormat("nditelop-asset-path");
+    private static readonly DataFormat<string> PlaylistDragDataFormat = DataFormat.CreateStringApplicationFormat("nditelop-playlist-preset-id");
     private Preset? _dragSourcePreset;
     private PlaylistItem? _dragSourcePlaylistItem;
 
@@ -108,11 +108,13 @@ public partial class MainWindow : Window
 
         _dragSourcePreset = preset;
 
-        var dataObject = new DataObject();
-        dataObject.Set(PresetDragDataFormat, preset.Id);
-        dataObject.Set(DataFormats.Text, preset.Id);
+        var dataTransfer = new DataTransfer();
+        var item = new DataTransferItem();
+        item.Set(PresetDragDataFormat, preset.Id);
+        item.SetText(preset.Id);
+        dataTransfer.Add(item);
 
-        await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Move);
+        await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Move);
     }
 
 
@@ -124,11 +126,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dataObject = new DataObject();
-        dataObject.Set(AssetDragDataFormat, asset.RelativePath);
-        dataObject.Set(DataFormats.Text, asset.RelativePath);
+        var dataTransfer = new DataTransfer();
+        var item = new DataTransferItem();
+        item.Set(AssetDragDataFormat, asset.RelativePath);
+        item.SetText(asset.RelativePath);
+        dataTransfer.Add(item);
 
-        await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Copy);
+        await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Copy);
     }
 
     private async void PlaylistListBox_OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -140,11 +144,13 @@ public partial class MainWindow : Window
         }
 
         _dragSourcePlaylistItem = item;
-        var dataObject = new DataObject();
-        dataObject.Set(PlaylistDragDataFormat, item.PresetId);
-        dataObject.Set(DataFormats.Text, item.PresetId);
+        var dataTransfer = new DataTransfer();
+        var transferItem = new DataTransferItem();
+        transferItem.Set(PlaylistDragDataFormat, item.PresetId);
+        transferItem.SetText(item.PresetId);
+        dataTransfer.Add(transferItem);
 
-        await DragDrop.DoDragDrop(e, dataObject, DragDropEffects.Move);
+        await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Move);
     }
 
     private void PresetListBox_OnDragOver(object? sender, DragEventArgs e)
@@ -156,7 +162,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!e.Data.Contains(PresetDragDataFormat))
+        if (!e.DataTransfer.Contains(PresetDragDataFormat))
         {
             e.DragEffects = DragDropEffects.None;
             return;
@@ -222,7 +228,7 @@ public partial class MainWindow : Window
     private void PlaylistListBox_OnDragOver(object? sender, DragEventArgs e)
     {
         var targetItem = ExtractPlaylistItemFromEventSource(e.Source);
-        if (_dragSourcePlaylistItem == null || targetItem == null || !e.Data.Contains(PlaylistDragDataFormat))
+        if (_dragSourcePlaylistItem == null || targetItem == null || !e.DataTransfer.Contains(PlaylistDragDataFormat))
         {
             e.DragEffects = DragDropEffects.None;
             return;
