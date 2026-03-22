@@ -119,6 +119,11 @@ jobs:
     - name: Verify published Windows payload
       shell: pwsh
       run: |
+        Write-Host 'Published file structure (depth 3):'
+        Get-ChildItem -Path 'publish/win-x64' -Recurse -Depth 3 |
+          Sort-Object FullName |
+          ForEach-Object { Write-Host $_.FullName }
+
         $requiredFiles = @(
           'publish/win-x64/NdiTelop.exe',
           'publish/win-x64/NDILibDotNetCoreBase.dll',
