@@ -45,7 +45,17 @@ public static class Program
     private static IServiceProvider ConfigureServices()
     {
         var services = new ServiceCollection();
+        RegisterServices(services);
 
+        var serviceProvider = services.BuildServiceProvider();
+
+        InitializeExternalControlServices(serviceProvider);
+
+        return serviceProvider;
+    }
+
+    private static void RegisterServices(IServiceCollection services)
+    {
         services.AddSingleton<MainWindow>();
         services.AddSingleton<SettingsWindow>();
         services.AddSingleton<HotkeyService>();
@@ -55,7 +65,8 @@ public static class Program
 
         services.AddSingleton<ExternalDataSourceService>();
         services.AddSingleton<INdiService, NdiService>();
-        services.AddSingleton<IRenderService, RenderService>();
+        services.AddSingleton<RenderService>();
+        services.AddSingleton<IRenderService>(provider => provider.GetRequiredService<RenderService>());
         services.AddSingleton<PresetService>(provider =>
             new PresetService(
                 Path.Combine(AppContext.BaseDirectory, "data", "presets.json"),
@@ -71,12 +82,6 @@ public static class Program
         services.AddSingleton<ISettingsService>(provider => provider.GetRequiredService<SettingsService>());
         services.AddSingleton<BackupArchiveService>();
         services.AddSingleton<ThemeService>();
-
-        var serviceProvider = services.BuildServiceProvider();
-
-        InitializeExternalControlServices(serviceProvider);
-
-        return serviceProvider;
     }
 
     private static void InitializeExternalControlServices(IServiceProvider services)
