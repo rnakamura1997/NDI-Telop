@@ -39,7 +39,25 @@ jobs:
           throw 'Failed to download the NDI runtime installer.'
         }
 
-        Start-Process -FilePath $installerPath -ArgumentList '/S' -Wait -NoNewWindow
+        $installerArguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
+        $installerProcess = Start-Process -FilePath $installerPath -ArgumentList $installerArguments -PassThru
+
+        try {
+          $installerProcess | Wait-Process -Timeout 180 -ErrorAction Stop
+        }
+        catch {
+          if (-not $installerProcess.HasExited) {
+            Stop-Process -Id $installerProcess.Id -Force
+          }
+
+          throw 'NDI runtime installer did not complete within 180 seconds.'
+        }
+
+        if ($installerProcess.ExitCode -ne 0) {
+          throw "NDI runtime installer failed with exit code $($installerProcess.ExitCode)."
+        }
+
+        Start-Sleep -Seconds 60
 
         $runtimeCandidates = @(
           "$env:ProgramFiles\NDI\NDI 6 Runtime\v6",
@@ -87,9 +105,14 @@ jobs:
         )
 
         foreach ($dll in $requiredNativeDlls) {
-          $source = Join-Path $env:NDI_RUNTIME_DIR $dll
-          if (Test-Path $source) {
-            Copy-Item -Path $source -Destination (Join-Path $env:GITHUB_WORKSPACE 'publish/win-x64') -Force
+          $publishedPath = Join-Path $env:GITHUB_WORKSPACE "publish/win-x64/$dll"
+          if (-not (Test-Path $publishedPath)) {
+            $source = Join-Path $env:NDI_RUNTIME_DIR $dll
+            if (-not (Test-Path $source)) {
+              throw "Required NDI runtime dependency was not found: $source"
+            }
+
+            Copy-Item -Path $source -Destination $publishedPath -Force
           }
         }
 
