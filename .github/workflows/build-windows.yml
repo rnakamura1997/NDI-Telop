@@ -48,7 +48,13 @@ jobs:
 
     - name: Build Installer
       run: |
-        iscc /DMyAppVersion="${{ env.VERSION }}" installer/setup.iss
+        Push-Location installer
+        try {
+          iscc /DMyAppVersion="${{ env.VERSION }}" setup.iss
+        }
+        finally {
+          Pop-Location
+        }
 
     - name: Upload Installer Artifact
       uses: actions/upload-artifact@v4
