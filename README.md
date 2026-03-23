@@ -36,6 +36,20 @@ dotnet build src/NdiTelop/NdiTelop.csproj
 dotnet test tests/NdiTelop.Tests/NdiTelop.Tests.csproj
 ```
 
+### CI と手動起動確認
+
+- GitHub Actions では **ビルド、GUI に依存しないユニットテスト、publish 成果物確認、インストーラー生成** までを検証します。
+- GitHub Actions のような非対話環境では `ClassicDesktopLifetime` を使う GUI アプリを起動しません。`dotnet run`、`NdiTelop.exe` の起動、生成済みインストーラーの実行による起動確認は CI では行いません。
+- 最終的な起動確認は、**対話型 Windows デスクトップ環境** でユーザーが手動実施してください。
+
+手動確認手順:
+
+1. GitHub Actions 実行結果から `NdiTelop-Installer-v*` アーティファクトをダウンロードする。
+2. そのインストーラーを、GitHub Actions / Windows サービス / 非対話タスクではない **通常の Windows デスクトップ環境** に配置する。
+3. `NdiTelop-Setup-v*.exe` を手動で実行してインストールする。
+4. スタートメニューまたはインストール先の `NdiTelop.exe` からアプリを起動する。
+5. `System.PlatformNotSupportedException` が発生せず、メインウィンドウが表示されることを確認する。
+
 ## 画面構成と基本ワークフロー
 
 ### 1. プリセットを選ぶ
