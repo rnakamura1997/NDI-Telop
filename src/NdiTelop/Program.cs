@@ -25,7 +25,7 @@ public static class Program
 
             if (!CanStartDesktopLifetime())
             {
-                Log.Warning("Skipping Avalonia desktop startup because no supported desktop session was detected.");
+                Log.Error("Skipping Avalonia desktop startup because the current process is not running in a supported interactive desktop session.");
                 return;
             }
 
@@ -56,10 +56,27 @@ public static class Program
             .UseReactiveUI();
 
     internal static bool CanStartDesktopLifetime()
-        => CanStartDesktopLifetime(Environment.GetEnvironmentVariables());
+        => CanStartDesktopLifetime(
+            Environment.GetEnvironmentVariables(),
+            Environment.UserInteractive,
+            Environment.GetEnvironmentVariable("SESSIONNAME"));
 
     internal static bool CanStartDesktopLifetime(System.Collections.IDictionary environmentVariables)
+        => CanStartDesktopLifetime(
+            environmentVariables,
+            Environment.UserInteractive,
+            environmentVariables["SESSIONNAME"]?.ToString());
+
+    internal static bool CanStartDesktopLifetime(
+        System.Collections.IDictionary environmentVariables,
+        bool isUserInteractive,
+        string? sessionName)
     {
+        if (IsCiEnvironment(environmentVariables))
+        {
+            return false;
+        }
+
         if (OperatingSystem.IsLinux())
         {
             return HasEnvironmentVariable(environmentVariables, "DISPLAY")
@@ -67,8 +84,17 @@ public static class Program
                 || IsSupportedLinuxSessionType(environmentVariables);
         }
 
-        return OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+        if (OperatingSystem.IsWindows())
+        {
+            return isUserInteractive && IsSupportedWindowsSession(sessionName);
+        }
+
+        return OperatingSystem.IsMacOS() && isUserInteractive;
     }
+
+    private static bool IsSupportedWindowsSession(string? sessionName)
+        => !string.IsNullOrWhiteSpace(sessionName)
+            && !sessionName.Equals("Services", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsSupportedLinuxSessionType(System.Collections.IDictionary environmentVariables)
     {
@@ -81,8 +107,17 @@ public static class Program
             || sessionType.Equals("wayland", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsCiEnvironment(System.Collections.IDictionary environmentVariables)
+        => HasTruthyEnvironmentVariable(environmentVariables, "CI")
+            || HasTruthyEnvironmentVariable(environmentVariables, "GITHUB_ACTIONS");
+
     private static bool HasEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key)
         => TryGetEnvironmentVariable(environmentVariables, key, out _);
+
+    private static bool HasTruthyEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key)
+        => TryGetEnvironmentVariable(environmentVariables, key, out var value)
+            && (value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("1", StringComparison.OrdinalIgnoreCase));
 
     private static bool TryGetEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key, out string value)
     {
