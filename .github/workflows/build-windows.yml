@@ -29,7 +29,7 @@ jobs:
     - name: Build
       run: dotnet build src/NdiTelop/NdiTelop.csproj --no-restore -c Release
 
-    - name: Test non-GUI units only
+    - name: Test headless-safe units only
       run: dotnet test tests/NdiTelop.Tests/NdiTelop.Tests.csproj --no-build -c Release --verbosity normal
 
     - name: Install NDI Runtime
@@ -119,7 +119,7 @@ jobs:
           }
         }
 
-    - name: Verify published Windows payload
+    - name: Verify published Windows payload without launching the GUI
       shell: pwsh
       run: |
         Write-Host 'Published file structure (depth 3):'
@@ -140,8 +140,17 @@ jobs:
           }
         }
 
-        Write-Host 'CI validation intentionally stops at payload verification.'
-        Write-Host 'The workflow must not run dotnet run, launch NdiTelop.exe, or execute the generated installer because GitHub Actions is not an interactive Windows desktop session.'
+        $forbiddenGuiLaunchCommands = @(
+          'dotnet run',
+          'publish/win-x64/NdiTelop.exe',
+          'installer/Output/NdiTelop-Setup-v*.exe'
+        )
+
+        Write-Host 'CI validation intentionally stops at restore/build/test/publish/installer packaging.'
+        foreach ($command in $forbiddenGuiLaunchCommands) {
+          Write-Host "Forbidden in CI: $command"
+        }
+        Write-Host 'GitHub Actions is not an interactive Windows desktop session, so GUI launch checks must be performed manually after downloading the installer artifact.'
 
     - name: Install Inno Setup
       run: choco install innosetup -y

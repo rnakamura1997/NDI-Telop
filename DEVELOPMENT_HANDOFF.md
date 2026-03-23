@@ -72,7 +72,7 @@ Phase 1b までの主要な機能（リアルタイムプレビュー、NDI送�
 2.  **リポジトリのクローン**: `git clone https://github.com/rnakamura1997/NDI-Telop.git`
 3.  **依存関係の復元**: プロジェクトルートで `dotnet restore` を実行。
 4.  **ビルド**: プロジェクトルートで `dotnet build` を実行。
-5.  **実行**: `dotnet run --project src/NdiTelop`
+5.  **実行**: `dotnet run --project src/NdiTelop` は **対話型 Windows デスクトップ環境でのみ** 実施してください。GitHub Actions、Windows サービス、非対話タスクでは `ClassicDesktopLifetime` により GUI 起動確認は行いません。
 
 ## 7. 既知の課題と注意事項
 
