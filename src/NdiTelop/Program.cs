@@ -12,6 +12,8 @@ namespace NdiTelop;
 
 public static class Program
 {
+    private static readonly string[] SupportedWindowsSessionPrefixes = ["Console", "RDP-", "ICA-"];
+
     public static IServiceProvider Services { get; private set; } = default!;
 
     [STAThread]
@@ -25,7 +27,7 @@ public static class Program
 
             if (!CanStartDesktopLifetime())
             {
-                Log.Error("Skipping Avalonia desktop startup because the current process is not running in a supported interactive desktop session.");
+                Log.Error("Skipping Avalonia desktop startup because the current process is not running in a supported interactive Windows desktop session.");
                 return;
             }
 
@@ -34,8 +36,7 @@ public static class Program
         }
         catch (PlatformNotSupportedException ex)
         {
-            Log.Fatal(ex, "Avalonia desktop lifetime is not supported on the current platform/environment.");
-            throw;
+            Log.Error(ex, "Avalonia desktop lifetime is not supported in the current execution environment. Run the application in an interactive Windows desktop session.");
         }
         catch (Exception ex)
         {
@@ -72,47 +73,24 @@ public static class Program
         bool isUserInteractive,
         string? sessionName)
     {
-        if (IsCiEnvironment(environmentVariables))
+        if (IsCiEnvironment(environmentVariables) || !OperatingSystem.IsWindows())
         {
             return false;
         }
 
-        if (OperatingSystem.IsLinux())
-        {
-            return HasEnvironmentVariable(environmentVariables, "DISPLAY")
-                || HasEnvironmentVariable(environmentVariables, "WAYLAND_DISPLAY")
-                || IsSupportedLinuxSessionType(environmentVariables);
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            return isUserInteractive && IsSupportedWindowsSession(sessionName);
-        }
-
-        return OperatingSystem.IsMacOS() && isUserInteractive;
+        return isUserInteractive && IsSupportedWindowsSession(sessionName);
     }
 
     private static bool IsSupportedWindowsSession(string? sessionName)
         => !string.IsNullOrWhiteSpace(sessionName)
-            && !sessionName.Equals("Services", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsSupportedLinuxSessionType(System.Collections.IDictionary environmentVariables)
-    {
-        if (!TryGetEnvironmentVariable(environmentVariables, "XDG_SESSION_TYPE", out var sessionType))
-        {
-            return false;
-        }
-
-        return sessionType.Equals("x11", StringComparison.OrdinalIgnoreCase)
-            || sessionType.Equals("wayland", StringComparison.OrdinalIgnoreCase);
-    }
+            && !sessionName.Equals("Services", StringComparison.OrdinalIgnoreCase)
+            && SupportedWindowsSessionPrefixes.Any(prefix =>
+                sessionName.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+                || sessionName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsCiEnvironment(System.Collections.IDictionary environmentVariables)
         => HasTruthyEnvironmentVariable(environmentVariables, "CI")
             || HasTruthyEnvironmentVariable(environmentVariables, "GITHUB_ACTIONS");
-
-    private static bool HasEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key)
-        => TryGetEnvironmentVariable(environmentVariables, key, out _);
 
     private static bool HasTruthyEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key)
         => TryGetEnvironmentVariable(environmentVariables, key, out var value)
