@@ -12,8 +12,6 @@ namespace NdiTelop;
 
 public static class Program
 {
-    private static readonly string[] SupportedWindowsSessionPrefixes = ["Console", "RDP-", "ICA-"];
-
     public static IServiceProvider Services { get; private set; } = default!;
 
     [STAThread]
@@ -25,7 +23,7 @@ public static class Program
         {
             Log.Information("Application startup.");
 
-            if (!CanStartDesktopLifetime())
+            if (!DesktopStartupEnvironment.CanStartClassicDesktopLifetime())
             {
                 Log.Error("Skipping Avalonia desktop startup because the current process is not running in a supported interactive Windows desktop session.");
                 return;
@@ -55,59 +53,6 @@ public static class Program
             .UsePlatformDetect()
             .LogToTrace()
             .UseReactiveUI();
-
-    internal static bool CanStartDesktopLifetime()
-        => CanStartDesktopLifetime(
-            Environment.GetEnvironmentVariables(),
-            Environment.UserInteractive,
-            Environment.GetEnvironmentVariable("SESSIONNAME"));
-
-    internal static bool CanStartDesktopLifetime(System.Collections.IDictionary environmentVariables)
-        => CanStartDesktopLifetime(
-            environmentVariables,
-            Environment.UserInteractive,
-            environmentVariables["SESSIONNAME"]?.ToString());
-
-    internal static bool CanStartDesktopLifetime(
-        System.Collections.IDictionary environmentVariables,
-        bool isUserInteractive,
-        string? sessionName)
-    {
-        if (IsCiEnvironment(environmentVariables) || !OperatingSystem.IsWindows())
-        {
-            return false;
-        }
-
-        return isUserInteractive && IsSupportedWindowsSession(sessionName);
-    }
-
-    private static bool IsSupportedWindowsSession(string? sessionName)
-        => !string.IsNullOrWhiteSpace(sessionName)
-            && !sessionName.Equals("Services", StringComparison.OrdinalIgnoreCase)
-            && SupportedWindowsSessionPrefixes.Any(prefix =>
-                sessionName.Equals(prefix, StringComparison.OrdinalIgnoreCase)
-                || sessionName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-
-    private static bool IsCiEnvironment(System.Collections.IDictionary environmentVariables)
-        => HasTruthyEnvironmentVariable(environmentVariables, "CI")
-            || HasTruthyEnvironmentVariable(environmentVariables, "GITHUB_ACTIONS");
-
-    private static bool HasTruthyEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key)
-        => TryGetEnvironmentVariable(environmentVariables, key, out var value)
-            && (value.Equals("true", StringComparison.OrdinalIgnoreCase)
-                || value.Equals("1", StringComparison.OrdinalIgnoreCase));
-
-    private static bool TryGetEnvironmentVariable(System.Collections.IDictionary environmentVariables, string key, out string value)
-    {
-        value = string.Empty;
-        if (!environmentVariables.Contains(key))
-        {
-            return false;
-        }
-
-        value = environmentVariables[key]?.ToString() ?? string.Empty;
-        return !string.IsNullOrWhiteSpace(value);
-    }
 
     private static IServiceProvider ConfigureServices()
     {

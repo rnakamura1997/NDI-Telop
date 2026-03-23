@@ -6,7 +6,7 @@ namespace NdiTelop.Tests;
 public sealed class ProgramDesktopLifetimeTests
 {
     [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnFalse_WhenCiEnvironmentIsDetected()
+    public void CanStartClassicDesktopLifetime_ShouldReturnFalse_WhenHeadlessEnvironmentIsDetected()
     {
         IDictionary environment = new Hashtable
         {
@@ -14,13 +14,13 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = "Console"
         };
 
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: "Console");
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Console");
 
         Assert.False(result);
     }
 
     [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnFalse_OnNonWindowsPlatforms()
+    public void CanStartClassicDesktopLifetime_ShouldReturnFalse_OnNonWindowsPlatforms()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -32,13 +32,13 @@ public sealed class ProgramDesktopLifetimeTests
             ["DISPLAY"] = ":0"
         };
 
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
 
         Assert.False(result);
     }
 
     [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnFalse_WhenWindowsSessionIsNonInteractive()
+    public void CanStartClassicDesktopLifetime_ShouldReturnFalse_WhenWindowsSessionIsNonInteractive()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -50,7 +50,7 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = "Services"
         };
 
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: false, sessionName: "Services");
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: false, sessionName: "Services");
 
         Assert.False(result);
     }
@@ -59,7 +59,7 @@ public sealed class ProgramDesktopLifetimeTests
     [InlineData("Console")]
     [InlineData("RDP-Tcp#12")]
     [InlineData("ICA-Citrix")]
-    public void CanStartDesktopLifetime_ShouldReturnTrue_WhenWindowsSessionIsInteractive(string sessionName)
+    public void CanStartClassicDesktopLifetime_ShouldReturnTrue_WhenWindowsSessionIsInteractive(string sessionName)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -71,13 +71,13 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = sessionName
         };
 
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: sessionName);
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: sessionName);
 
         Assert.True(result);
     }
 
     [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnFalse_WhenWindowsSessionNameIsUnsupported()
+    public void CanStartClassicDesktopLifetime_ShouldReturnFalse_WhenWindowsSessionNameIsUnsupported()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -89,8 +89,23 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = "Service-0x0-3e7$"
         };
 
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: "Service-0x0-3e7$");
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Service-0x0-3e7$");
 
         Assert.False(result);
+    }
+
+    [Fact]
+    public void CanStartClassicDesktopLifetime_ShouldAllowInteractiveWindowsSessionWithoutSessionName()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        IDictionary environment = new Hashtable();
+
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
+
+        Assert.True(result);
     }
 }
