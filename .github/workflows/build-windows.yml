@@ -11,6 +11,9 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
 
     steps:
     - uses: actions/checkout@v4
@@ -26,7 +29,7 @@ jobs:
     - name: Build
       run: dotnet build src/NdiTelop/NdiTelop.csproj --no-restore -c Release
 
-    - name: Test
+    - name: Test non-GUI units only
       run: dotnet test tests/NdiTelop.Tests/NdiTelop.Tests.csproj --no-build -c Release --verbosity normal
 
     - name: Install NDI Runtime
@@ -137,6 +140,9 @@ jobs:
           }
         }
 
+        Write-Host 'CI validation intentionally stops at payload verification.'
+        Write-Host 'The workflow must not run dotnet run, launch NdiTelop.exe, or execute the generated installer because GitHub Actions is not an interactive Windows desktop session.'
+
     - name: Install Inno Setup
       run: choco install innosetup -y
 
@@ -164,6 +170,23 @@ jobs:
       with:
         name: NdiTelop-Installer-v${{ env.VERSION }}
         path: installer/Output/NdiTelop-Setup-v*.exe
+
+    - name: Publish manual verification guidance
+      shell: pwsh
+      run: |
+        @"
+        ## CI verification scope
+        - GitHub Actions validates restore, build, non-GUI unit tests, publish output, and installer creation only.
+        - This workflow intentionally does **not** run `dotnet run`, start `publish/win-x64/NdiTelop.exe`, or execute `NdiTelop-Setup-v*.exe`.
+        - `ClassicDesktopLifetime` requires an interactive Windows desktop session, so GUI launch verification must be performed manually outside CI.
+
+        ## Manual installer verification
+        1. Download the `NdiTelop-Installer-v${{ env.VERSION }}` artifact from this workflow run.
+        2. Copy the installer to an interactive Windows desktop machine (not GitHub Actions, not a Windows service, and not a non-interactive scheduled task).
+        3. Run `NdiTelop-Setup-v*.exe` manually and complete the installation.
+        4. Launch NdiTelop from the Start Menu or the installed executable.
+        5. Confirm that the application reaches the main window without `System.PlatformNotSupportedException`.
+        "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')
