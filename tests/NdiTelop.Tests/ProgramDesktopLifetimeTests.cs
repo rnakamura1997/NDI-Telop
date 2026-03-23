@@ -11,7 +11,6 @@ public sealed class ProgramDesktopLifetimeTests
         IDictionary environment = new Hashtable
         {
             ["CI"] = "true",
-            ["DISPLAY"] = ":0",
             ["SESSIONNAME"] = "Console"
         };
 
@@ -21,24 +20,9 @@ public sealed class ProgramDesktopLifetimeTests
     }
 
     [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnFalse_WhenLinuxDisplayVariablesAreMissing()
+    public void CanStartDesktopLifetime_ShouldReturnFalse_OnNonWindowsPlatforms()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            return;
-        }
-
-        IDictionary environment = new Hashtable();
-
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
-
-        Assert.False(result);
-    }
-
-    [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnTrue_WhenLinuxDisplayVariableExists()
-    {
-        if (!OperatingSystem.IsLinux())
+        if (OperatingSystem.IsWindows())
         {
             return;
         }
@@ -50,7 +34,7 @@ public sealed class ProgramDesktopLifetimeTests
 
         var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
 
-        Assert.True(result);
+        Assert.False(result);
     }
 
     [Fact]
@@ -71,8 +55,11 @@ public sealed class ProgramDesktopLifetimeTests
         Assert.False(result);
     }
 
-    [Fact]
-    public void CanStartDesktopLifetime_ShouldReturnTrue_WhenWindowsSessionIsInteractive()
+    [Theory]
+    [InlineData("Console")]
+    [InlineData("RDP-Tcp#12")]
+    [InlineData("ICA-Citrix")]
+    public void CanStartDesktopLifetime_ShouldReturnTrue_WhenWindowsSessionIsInteractive(string sessionName)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -81,11 +68,29 @@ public sealed class ProgramDesktopLifetimeTests
 
         IDictionary environment = new Hashtable
         {
-            ["SESSIONNAME"] = "Console"
+            ["SESSIONNAME"] = sessionName
         };
 
-        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: "Console");
+        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: sessionName);
 
         Assert.True(result);
+    }
+
+    [Fact]
+    public void CanStartDesktopLifetime_ShouldReturnFalse_WhenWindowsSessionNameIsUnsupported()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        IDictionary environment = new Hashtable
+        {
+            ["SESSIONNAME"] = "Service-0x0-3e7$"
+        };
+
+        var result = Program.CanStartDesktopLifetime(environment, isUserInteractive: true, sessionName: "Service-0x0-3e7$");
+
+        Assert.False(result);
     }
 }

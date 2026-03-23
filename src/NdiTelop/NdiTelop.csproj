@@ -36,6 +36,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishAot>false</PublishAot>
+    <PublishSingleFile>false</PublishSingleFile>
     <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NDI\\NDI 6 Runtime\\v6\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NDI\NDI 6 Runtime\v6\</NdiRuntimeDir>
     <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NDI\\NDI 6 Runtime\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NDI\NDI 6 Runtime\</NdiRuntimeDir>
     <NdiRuntimeDir Condition="'$(NdiRuntimeDir)' == '' and Exists('$(ProgramFiles)\\NewTek\\NDI 5 Runtime\\v5\\Processing.NDI.Lib.x64.dll')">$(ProgramFiles)\NewTek\NDI 5 Runtime\v5\</NdiRuntimeDir>
