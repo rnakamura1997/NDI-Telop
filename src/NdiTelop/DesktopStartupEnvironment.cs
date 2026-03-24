@@ -9,17 +9,24 @@ internal static class DesktopStartupEnvironment
     private static readonly string[] HeadlessEnvironmentVariables = ["CI", "GITHUB_ACTIONS", "DOTNET_RUNNING_IN_CONTAINER"];
 
     public static bool CanStartClassicDesktopLifetime()
-        => CanStartClassicDesktopLifetime(
+    {
+        var isWindows = OperatingSystem.IsWindows();
+        return CanStartClassicDesktopLifetime(
             Environment.GetEnvironmentVariables(),
             Environment.UserInteractive,
-            Environment.GetEnvironmentVariable("SESSIONNAME"));
+            Environment.GetEnvironmentVariable("SESSIONNAME"),
+            isWindows,
+            isWindows && WindowsDesktopSessionProbe.HasVisibleWindowStation());
+    }
 
     internal static bool CanStartClassicDesktopLifetime(
         IDictionary environmentVariables,
         bool isUserInteractive,
-        string? sessionName)
+        string? sessionName,
+        bool isWindows,
+        bool hasVisibleWindowStation)
     {
-        if (!OperatingSystem.IsWindows() || !isUserInteractive || IsHeadlessEnvironment(environmentVariables))
+        if (!isWindows || !isUserInteractive || !hasVisibleWindowStation || IsHeadlessEnvironment(environmentVariables))
         {
             return false;
         }
