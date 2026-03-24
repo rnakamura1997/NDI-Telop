@@ -14,7 +14,7 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = "Console"
         };
 
-        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Console");
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Console", isWindows: true, hasVisibleWindowStation: true);
 
         Assert.False(result);
     }
@@ -32,7 +32,7 @@ public sealed class ProgramDesktopLifetimeTests
             ["DISPLAY"] = ":0"
         };
 
-        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: null, isWindows: false, hasVisibleWindowStation: false);
 
         Assert.False(result);
     }
@@ -50,7 +50,7 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = "Services"
         };
 
-        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: false, sessionName: "Services");
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: false, sessionName: "Services", isWindows: true, hasVisibleWindowStation: false);
 
         Assert.False(result);
     }
@@ -71,7 +71,7 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = sessionName
         };
 
-        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: sessionName);
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: sessionName, isWindows: true, hasVisibleWindowStation: true);
 
         Assert.True(result);
     }
@@ -89,7 +89,20 @@ public sealed class ProgramDesktopLifetimeTests
             ["SESSIONNAME"] = "Service-0x0-3e7$"
         };
 
-        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Service-0x0-3e7$");
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Service-0x0-3e7$", isWindows: true, hasVisibleWindowStation: false);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void CanStartClassicDesktopLifetime_ShouldReturnFalse_WhenWindowStationIsNotVisible()
+    {
+        IDictionary environment = new Hashtable
+        {
+            ["SESSIONNAME"] = "Console"
+        };
+
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: "Console", isWindows: true, hasVisibleWindowStation: false);
 
         Assert.False(result);
     }
@@ -104,7 +117,7 @@ public sealed class ProgramDesktopLifetimeTests
 
         IDictionary environment = new Hashtable();
 
-        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: null);
+        var result = DesktopStartupEnvironment.CanStartClassicDesktopLifetime(environment, isUserInteractive: true, sessionName: null, isWindows: true, hasVisibleWindowStation: true);
 
         Assert.True(result);
     }
